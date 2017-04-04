@@ -33,7 +33,9 @@ lazy val commonSettings = Seq(
     libraryDependencies ++= Seq(
       "co.fs2" %% "fs2-core" % "0.9.4",
       "org.reactivestreams" % "reactive-streams" % "1.0.0",
-      "org.scalatest" %% "scalatest" % "3.0.1" % "test"
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
+      "org.scalatest" %% "scalatest" % "3.0.1" % "test",
+      "org.reactivestreams" % "reactive-streams-tck" % "1.0.0" % "test"
     ),
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 ) ++ coverageSettings ++ buildSettings
