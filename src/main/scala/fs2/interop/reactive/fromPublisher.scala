@@ -7,6 +7,7 @@ import fs2.util.syntax._
 import fs2.async.mutable._
 
 import org.reactivestreams.{Subscriber => RSubscriber, Publisher => RPublisher, Subscription => RSubscription}
+import com.typesafe.scalalogging.LazyLogging
 
 /** An implementation of a org.reactivestreams.Subscriber */
 final class Subscriber[A](val sub: SubscriberQueue[Task, A]) extends RSubscriber[A] {
@@ -48,14 +49,14 @@ trait SubscriberQueue[F[_], A] {
   def onFinalize: F[Unit] 
 
   /** producer for downstream */
-  def dequeue: F[Attempt[Option[A]]]
+  def dequeue1: F[Attempt[Option[A]]]
 
   /** downstream stream */
   def stream()(implicit A: Applicative[F]): Stream[F, A] = 
-    Stream.eval(dequeue).repeat.through(pipe.rethrow).unNoneTerminate.onFinalize(onFinalize)
+    Stream.eval(dequeue1).repeat.through(pipe.rethrow).unNoneTerminate.onFinalize(onFinalize)
 }
 
-object SubscriberQueue {
+object SubscriberQueue extends LazyLogging {
 
 
   //TODO: This needs to be tested against <a href="https://github.com/reactive-streams/reactive-streams-jvm/blob/v1.0.0/README.md#specification">reactive specification</a>
@@ -101,12 +102,19 @@ object SubscriberQueue {
 
         def onSubscribe(s: RSubscription): Task[Unit] = qref.modify {
           case FirstRequest(req) =>
+              logger.info(s"$this received subscription after request")
             PendingElement(s, req)
+          case Uninitialized =>
+              logger.info(s"$this received subscription when uninitialized")
+            Idle(s)
           case o =>
+              logger.info(s"$this received subscription in state $o")
             o
         }.flatMap { _.previous match {
           case _ : FirstRequest => 
             AA.delay(s.request(1))
+          case Uninitialized =>
+            AA.pure(())
           case o => 
             AA.delay(s.cancel()) >> AA.fail(new Error(s"received subscription in invalid state [$o]"))
         }}
@@ -120,7 +128,8 @@ object SubscriberQueue {
           case PendingElement(s, r) => r.setPure(Attempt.success(Some(a)))
           case Cancelled => AA.pure(())
           case o => 
-            AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
+            //AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
+            AA.pure(())
         }}
 
         def onComplete(): Task[Unit] = qref.modify {
@@ -157,11 +166,13 @@ object SubscriberQueue {
         }}
 
 
-        def dequeue: Task[Attempt[Option[A]]] = AA.ref[Attempt[Option[A]]].flatMap { r =>
+        def dequeue1: Task[Attempt[Option[A]]] = AA.ref[Attempt[Option[A]]].flatMap { r =>
           qref.modify {
             case Uninitialized =>
+              logger.info(s"$this received request when uninitialised")
               FirstRequest(r)
             case Idle(sub) =>
+              logger.info(s"$this received request when idle")
               PendingElement(sub, r)
             case o => o
           }.flatMap(c => c.previous match {

@@ -35,7 +35,8 @@ lazy val commonSettings = Seq(
       "org.reactivestreams" % "reactive-streams" % "1.0.0",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
       "org.scalatest" %% "scalatest" % "3.0.1" % "test",
-      "org.reactivestreams" % "reactive-streams-tck" % "1.0.0" % "test"
+      "org.reactivestreams" % "reactive-streams-tck" % "1.0.0" % "test",
+      "org.slf4j" % "slf4j-simple" % "1.7.25" % "test"
     ),
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 ) ++ coverageSettings ++ buildSettings
