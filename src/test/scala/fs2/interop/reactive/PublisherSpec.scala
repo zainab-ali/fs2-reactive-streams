@@ -16,10 +16,20 @@ import org.{reactivestreams => rs}
 class PublisherSpec extends PublisherVerification[Int](new TestEnvironment()) with TestNGSuiteLike {
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "publisher-spec")
-  def createPublisher(n: Long): Publisher[Int] = if(n == java.lang.Long.MAX_VALUE)
-    reactive.toPublisher(Stream.repeatEval(Task.now(1)), 10)
-  else reactive.toPublisher(Stream[Task, Int]((0 until n.toInt):_*), 10)
+
+  def createPublisher(n: Long): Publisher[Int] = {
+    val timestamp = System.nanoTime()
+    val s: Stream[Task, Int] = if(n == java.lang.Long.MAX_VALUE) {
+      Stream[Task, Int]((1 until 20): _*).repeat
+    } else Stream[Task, Int](1).repeat.scan(1)(_ + _).map {
+      i => if(i > n) None else {
+        println(s"outputting $i of $n at $timestamp")
+        Some(i)
+      }
+    }.unNoneTerminate
+    reactive.toPublisher(s, 100)
+  }
 
   def createFailedPublisher(): Publisher[Int] =
-    reactive.toPublisher(Stream.eval(Task.fail(new Error("BOOM"))), 10)
+    reactive.toPublisher(Stream.eval(Task.fail(new Error("BOOM"))), 100)
 }

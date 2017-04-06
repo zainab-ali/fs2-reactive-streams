@@ -49,9 +49,13 @@ class Subscription[A, AA >: A](s: Stream[Task, A], queueSize: Int, sub: RSubscri
   }
 
   def request(i: Long): Unit = {
-    logger.trace(s"subscription received request for [$i] elements")
-    (0 until i.toInt).foreach { _ => requests.enqueue1(true).unsafeRunAsync(_ => ()) }
-    logger.trace("subscription queued requests")
+
+    if(i <= 0) sub.onError(new IllegalArgumentException("invalid argument 3.9"))
+    else {
+      logger.trace(s"subscription received request for [$i] elements")
+        (0 until i.toInt).foreach { _ => requests.enqueue1(true).unsafeRunAsync(_ => ()) }
+      logger.trace("subscription queued requests")
+    }
   }
 }
 
