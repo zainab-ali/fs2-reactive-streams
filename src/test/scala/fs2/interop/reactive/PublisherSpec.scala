@@ -34,8 +34,19 @@ class PublisherSpec extends PublisherVerification[Int](new TestEnvironment()) wi
     reactive.toPublisher(s, 100)
   }
 
-  def createFailedPublisher(): Publisher[Int] =
-    reactive.toPublisher(Stream.eval(Task.fail(new Error("BOOM"))), 100)
+  def createFailedPublisher(): FailedPublisher = new FailedPublisher()
+}
+
+class FailedSubscription(sub: rs.Subscriber[_]) extends rs.Subscription {
+  def cancel(): Unit = {}
+  def request(n: Long): Unit = {}
+}
+class FailedPublisher extends rs.Publisher[Int] {
+
+  def subscribe(subscriber: rs.Subscriber[_ >: Int]): Unit = {
+    subscriber.onSubscribe(new FailedSubscription(subscriber))
+    subscriber.onError(new Error(""))
+  }
 }
 
 class UnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment()) with TestNGSuiteLike with LazyLogging {
@@ -57,6 +68,6 @@ class UnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironmen
     pub
   }
 
-  def createFailedPublisher(): UnicastPublisher[Int] =
-    reactive.toUnicastPublisher(Stream.eval(Task.fail(new Error("BOOM"))))
+  //impossible to fail lazy unicast publisher
+  def createFailedPublisher(): FailedPublisher = new FailedPublisher()
 }
