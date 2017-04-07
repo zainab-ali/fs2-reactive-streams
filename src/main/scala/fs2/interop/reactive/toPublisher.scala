@@ -61,7 +61,7 @@ object UnicastPublisher extends LazyLogging {
   sealed trait State
   case object Idle extends State
   case object InfiniteRequests extends State
-  case class FiniteRequests(n: Int) extends State
+  case class FiniteRequests(n: Long) extends State
   case object Cancelled extends State
   case object Errored extends State
 
@@ -100,11 +100,16 @@ object UnicastPublisher extends LazyLogging {
         signal.modify {
           case Idle =>
             logger.debug(s"$pub creating new request for [$n] elements")
-            FiniteRequests(n.toInt)
+            FiniteRequests(n)
           case FiniteRequests(m) =>
-            logger.debug(s"$pub adding to existing requests.  Now requesting [$n] elements")
-            FiniteRequests(m + n.toInt)
-          case InfiniteRequests => FiniteRequests(n.toInt)
+            if(m + n > 0) {
+              logger.debug(s"$pub adding to existing requests.  Now requesting [$n] elements")
+              FiniteRequests(m + n)
+            } else { //overflow
+              logger.info(s"$pub adding to existing requests to result in an infinite requests.")
+              InfiniteRequests
+            }
+          case InfiniteRequests => InfiniteRequests
           case Cancelled => Cancelled
           case Errored => Errored
         }.unsafeRunAsync {
@@ -132,10 +137,14 @@ object UnicastPublisher extends LazyLogging {
           ah.receive { case (as, ah) => Pull.output(as) >> go(ah, sh) }
         case (FiniteRequests(n), sh) =>
           logger.debug(s"$pub processing [$n] requests")
-          ah.awaitLimit(n).flatMap {
+          val m = if(n > java.lang.Integer.MAX_VALUE.toLong) {
+            logger.debug(s"$pub processing maximium int value")
+            java.lang.Integer.MAX_VALUE
+          } else n.toInt
+          ah.awaitLimit(m).flatMap {
             case (as, ah) =>
               logger.debug(s"$pub processed [${as.size}] of [$n] requests")
-              val p = if(as.size >= n) Pull.eval(signal.set(Idle)) else Pull.eval(signal.set(FiniteRequests(n - as.size)))
+              val p = if(as.size.toLong >= n) Pull.eval(signal.set(Idle)) else Pull.eval(signal.set(FiniteRequests(n - as.size.toLong)))
               p >> Pull.output(as) >> go(ah, sh)
           }
         case (Cancelled, _) =>
