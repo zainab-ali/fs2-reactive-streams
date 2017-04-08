@@ -102,18 +102,17 @@ object UnicastPublisher extends LazyLogging {
             logger.debug(s"$pub creating new request for [$n] elements")
             FiniteRequests(n)
           case FiniteRequests(m) =>
-            if(m + n > 0) {
-              logger.debug(s"$pub adding to existing requests.  Now requesting [$n] elements")
-              FiniteRequests(m + n)
-            } else { //overflow
-              logger.info(s"$pub adding to existing requests to result in an infinite requests.")
-              InfiniteRequests
-            }
-          case InfiniteRequests => InfiniteRequests
+            logger.debug(s"$pub adding [$n] to existing requests [$m].  Now requesting [${m + n}] elements")
+            FiniteRequests(n)
+          case InfiniteRequests =>
+            logger.debug(s"$pub received infinite reqeusts again")
+            InfiniteRequests
           case Cancelled =>
             logger.error(s"$pub received request for [$n] elements when cancelled")
             Cancelled
-          case Errored => Errored
+          case Errored =>
+            logger.error(s"$pub received request for [$n] elements when errorred")
+            Errored
         }.unsafeRunAsync {
           case Left(err) => logger.error(s"$pub modification failed for [$n] elements")
           case Right(_) => ()
@@ -128,6 +127,7 @@ object UnicastPublisher extends LazyLogging {
   }
 
   def demandPipe[F[_], A](signal: Signal[F, State], pub: UnicastPublisher[_])(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
+
     def go(ah: Handle[F, A], sh: Handle[F, State]): Pull[F, A, A] =
       sh.receive1 {
         case (Idle, sh) =>
@@ -138,22 +138,51 @@ object UnicastPublisher extends LazyLogging {
           ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goInfinite(af, sf) }}
         case (FiniteRequests(n), sh) =>
           logger.debug(s"$pub processing [$n] requests")
-          val m = if(n > java.lang.Integer.MAX_VALUE.toLong) {
-            logger.debug(s"$pub processing maximium int value")
-            java.lang.Integer.MAX_VALUE
-          } else n.toInt
-          ah.awaitLimit(m).flatMap {
-            case (as, ah) =>
-              logger.debug(s"$pub processed [${as.size}] of [$n] requests")
-              val p = if(as.size.toLong >= n) Pull.eval(signal.set(Idle)) else Pull.eval(signal.set(FiniteRequests(n - as.size.toLong)))
-              p >> Pull.output(as) >> go(ah, sh)
-          }
+          ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goFinite(af, sf, sh, n) }}
         case (Cancelled, _) =>
           logger.debug(s"$pub processing cancellation - terminating stream")
           Pull.done
         case (Errored, _) =>
           logger.debug(s"$pub processing downstream error - terminating stream")
           Pull.done
+      }
+
+    def goFinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[State], Handle[F, State])]],
+      shh: Handle[F, State],
+      n: Long): Pull[F, A, A] =
+      (ah race sh).pull.flatMap {
+        case Left(ah) => ah.flatMap { case (as, ah) =>
+          if(as.size.toLong < n) Pull.output(as) >> ah.awaitAsync.flatMap(goFinite(_, sh, shh, n - as.size.toLong))
+          else if(as.size.toLong == n) Pull.output(as) >> go(ah, shh)
+          else Pull.output(as.take(n.toInt)) >> go(ah.push(as.drop(n.toInt)), shh)
+        }
+        case Right(sh) => sh.flatMap { case (s, sh) => s match {
+          case Some(FiniteRequests(m)) =>
+            logger.trace(s"$pub has received [$m] more requests.")
+            if(m + n > 0L) {
+              logger.trace(s"$pub has received finite number of requests [$m].  Adding to existing requests [$n] to request [${m + n}] elements")
+              sh.await1Async.flatMap { sf => goFinite(ah, sf, sh, m + n) }
+            }
+            else {
+              logger.trace(s"$pub has requests summing to infinity.  Now processing infinite requests.")
+              sh.await1Async.flatMap { sf => goInfinite(ah, sf) }
+            }
+          case Some(InfiniteRequests) =>
+            logger.trace(s"$pub has received an infinite number of requests.")
+            sh.await1Async.flatMap { sf => goInfinite(ah, sf) }
+          case Some(Errored) =>
+            logger.trace(s"$pub has received an error from downstream with [$n] requests remaining.")
+            Pull.done
+          case Some(Cancelled) =>
+            logger.trace(s"$pub has received a cancellation from downstream with [$n] requests remaining.")
+            Pull.done
+          case Some(Idle) =>
+            logger.error(s"$pub has invalid state!")
+            sys.error("invalid state!")
+          case None =>
+            logger.error(s"$pub has invalid state!")
+            sys.error("invalid state!")
+        } }
       }
 
     def goInfinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[State], Handle[F, State])]]): Pull[F, A, A] =
@@ -182,7 +211,11 @@ object UnicastPublisher extends LazyLogging {
             Pull.done
         }
       }
-    s.pull2(signal.discrete)(go)
+    val o = signal.discrete.map { s =>
+      logger.trace(s"$pub is emitting state $s")
+      s
+    }
+    s.pull2(o)(go)
   }
 
   def unicastSubscription[F[_], A](sub: RSubscriber[A], stream: Stream[F, A], pub: UnicastPublisher[_])(implicit A: Async[F]): F[UnicastSubscription[F, A]] =
