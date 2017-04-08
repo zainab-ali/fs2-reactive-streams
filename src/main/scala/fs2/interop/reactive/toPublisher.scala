@@ -61,7 +61,7 @@ object UnicastPublisher extends LazyLogging {
   sealed trait State
   case object Idle extends State
   case object InfiniteRequests extends State
-  case class FiniteRequests(n: Long) extends State
+  case class FiniteRequests(n: Long, counter: Long) extends State
   case object Cancelled extends State
   case object Errored extends State
 
@@ -100,12 +100,11 @@ object UnicastPublisher extends LazyLogging {
         signal.modify {
           case Idle =>
             logger.debug(s"$pub creating new request for [$n] elements")
-            FiniteRequests(n)
-          case FiniteRequests(m) =>
+            FiniteRequests(n, 0)
+          case FiniteRequests(m, c) =>
             logger.debug(s"$pub adding [$n] to existing requests [$m].  Now requesting [${m + n}] elements")
-            FiniteRequests(n)
+            FiniteRequests(n, c + 1)
           case InfiniteRequests =>
-            logger.debug(s"$pub received infinite reqeusts again")
             InfiniteRequests
           case Cancelled =>
             logger.error(s"$pub received request for [$n] elements when cancelled")
@@ -136,7 +135,7 @@ object UnicastPublisher extends LazyLogging {
         case (InfiniteRequests, sh) =>
           logger.debug(s"$pub processing infinite requests")
           ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goInfinite(af, sf) }}
-        case (FiniteRequests(n), sh) =>
+        case (FiniteRequests(n, _), sh) =>
           logger.debug(s"$pub processing [$n] requests")
           ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goFinite(af, sf, sh, n) }}
         case (Cancelled, _) =>
@@ -157,7 +156,7 @@ object UnicastPublisher extends LazyLogging {
           else Pull.output(as.take(n.toInt)) >> go(ah.push(as.drop(n.toInt)), shh)
         }
         case Right(sh) => sh.flatMap { case (s, sh) => s match {
-          case Some(FiniteRequests(m)) =>
+          case Some(FiniteRequests(m, _)) =>
             logger.trace(s"$pub has received [$m] more requests.")
             if(m + n > 0L) {
               logger.trace(s"$pub has received finite number of requests [$m].  Adding to existing requests [$n] to request [${m + n}] elements")
@@ -194,7 +193,7 @@ object UnicastPublisher extends LazyLogging {
           case (Some(InfiniteRequests), sh) =>
             logger.trace(s"$pub continuing to process infinite requests")
             sh.await1Async.flatMap(goInfinite(ah, _))
-          case (Some(FiniteRequests(_)), sh) =>
+          case (Some(FiniteRequests(_, _)), sh) =>
             logger.debug(s"$pub received request for a finite number of elements after an infinite number.  Continuing to process infinite requests")
             sh.await1Async.flatMap(goInfinite(ah, _))
           case (Some(Idle), _) =>
