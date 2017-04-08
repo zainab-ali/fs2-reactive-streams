@@ -2,7 +2,12 @@ language: scala
 
 # scala versions to test against
 scala:
- - 2.12.0
+ - 2.12.1
+ - 2.11.8
+
+jdk:
+ - oraclejdk8
+ - oraclejdk7
 
 script:
   - sbt clean coverage compile test coverageReport 
