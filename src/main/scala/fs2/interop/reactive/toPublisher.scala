@@ -110,7 +110,9 @@ object UnicastPublisher extends LazyLogging {
               InfiniteRequests
             }
           case InfiniteRequests => InfiniteRequests
-          case Cancelled => Cancelled
+          case Cancelled =>
+            logger.error(s"$pub received request for [$n] elements when cancelled")
+            Cancelled
           case Errored => Errored
         }.unsafeRunAsync {
           case Left(err) => logger.error(s"$pub modification failed for [$n] elements")
@@ -134,7 +136,6 @@ object UnicastPublisher extends LazyLogging {
         case (InfiniteRequests, sh) =>
           logger.debug(s"$pub processing infinite requests")
           ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goInfinite(af, sf) }}
-          ah.receive { case (as, ah) => Pull.output(as) >> go(ah, sh) }
         case (FiniteRequests(n), sh) =>
           logger.debug(s"$pub processing [$n] requests")
           val m = if(n > java.lang.Integer.MAX_VALUE.toLong) {
