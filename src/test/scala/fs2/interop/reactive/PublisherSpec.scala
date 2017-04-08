@@ -14,28 +14,28 @@ import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet,
 import org.{reactivestreams => rs}
 import com.typesafe.scalalogging.LazyLogging
 
-class PublisherSpec extends PublisherVerification[Int](new TestEnvironment()) with TestNGSuiteLike with LazyLogging {
+// class PublisherSpec extends PublisherVerification[Int](new TestEnvironment()) with TestNGSuiteLike with LazyLogging {
 
-  implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "publisher-spec")
+//   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "publisher-spec")
 
-  def createPublisher(n: Long): Publisher[Int] = {
-    val timestamp = System.nanoTime()
-    val s: Stream[Task, Int] = if(n == java.lang.Long.MAX_VALUE) {
-      Stream[Task, Int]((1 until 20): _*).repeat
-    } else Stream[Task, Int](1).repeat.scan(1)(_ + _).map {
-      i => if(i > n) {
-        logger.info(s"finished outputting [$n] elements")
-        None
-      } else {
-        logger.info(s"outputting [$i] of [$n] at [$timestamp]")
-        Some(i)
-      }
-    }.unNoneTerminate
-    reactive.toPublisher(s, 100)
-  }
+//   def createPublisher(n: Long): Publisher[Int] = {
+//     val timestamp = System.nanoTime()
+//     val s: Stream[Task, Int] = if(n == java.lang.Long.MAX_VALUE) {
+//       Stream[Task, Int]((1 until 20): _*).repeat
+//     } else Stream[Task, Int](1).repeat.scan(1)(_ + _).map {
+//       i => if(i > n) {
+//         logger.info(s"finished outputting [$n] elements")
+//         None
+//       } else {
+//         logger.info(s"outputting [$i] of [$n] at [$timestamp]")
+//         Some(i)
+//       }
+//     }.unNoneTerminate
+//     reactive.toPublisher(s, 100)
+//   }
 
-  def createFailedPublisher(): FailedPublisher = new FailedPublisher()
-}
+//   def createFailedPublisher(): FailedPublisher = new FailedPublisher()
+// }
 
 class FailedSubscription(sub: rs.Subscriber[_]) extends rs.Subscription {
   def cancel(): Unit = {}
