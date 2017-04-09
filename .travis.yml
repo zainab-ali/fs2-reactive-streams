@@ -9,7 +9,7 @@ jdk:
  - oraclejdk8
 
 script:
-  - sbt clean coverage compile test coverageReport 
+  - sbt clean compile "testOnly fs2.interop.reactive.UnicastPublisherSpec"
 
 after_success:
 - bash <(curl -s https://codecov.io/bash)
