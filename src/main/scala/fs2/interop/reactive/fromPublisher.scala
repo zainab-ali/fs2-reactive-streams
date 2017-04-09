@@ -6,13 +6,35 @@ import fs2.util._
 import fs2.util.syntax._
 import fs2.async.mutable._
 
-import org.reactivestreams.{Subscriber => RSubscriber, Publisher, Subscription}
+import org.reactivestreams.{Subscriber => RSubscriber, Publisher => RPublisher, Subscription => RSubscription}
+import com.typesafe.scalalogging.LazyLogging
+
+/** An implementation of a org.reactivestreams.Subscriber */
+final class Subscriber[A](val sub: SubscriberQueue[Task, A]) extends RSubscriber[A] {
+  def onSubscribe(s: RSubscription): Unit = {
+    nonNull(s)
+    sub.onSubscribe(s).unsafeRunAsync(_ => ())
+  }
+  def onNext(a: A): Unit = {
+    nonNull(a)
+    sub.onNext(a).unsafeRun()
+  }
+  def onComplete(): Unit = sub.onComplete.unsafeRun()
+  def onError(t: Throwable): Unit = {
+    nonNull(t)
+    sub.onError(t).unsafeRunAsync(_ => ())
+  }
+
+  def stream: Stream[Task, A] = sub.stream
+
+  private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
+}
 
 /** Dequeues from an upstream publisher */
-trait PublisherQueue[F[_], A] {
+trait SubscriberQueue[F[_], A] {
 
   /** receives a subscription from upstream */
-  def onSubscribe(s: Subscription): F[Unit]
+  def onSubscribe(s: RSubscription): F[Unit]
 
   /** receives next record from upstream */
   def onNext(a: A): F[Unit]
@@ -27,46 +49,27 @@ trait PublisherQueue[F[_], A] {
   def onFinalize: F[Unit] 
 
   /** producer for downstream */
-  def dequeue: F[Attempt[Option[A]]]
+  def dequeue1: F[Attempt[Option[A]]]
+
+  /** downstream stream */
+  def stream()(implicit A: Applicative[F]): Stream[F, A] = 
+    Stream.eval(dequeue1).repeat.through(pipe.rethrow).unNoneTerminate.onFinalize(onFinalize)
 }
 
-object PublisherQueue {
+object SubscriberQueue extends LazyLogging {
 
-  /** produces a stream from an upstream publisher */
-  def fromPublisher[A](tag: String, chunkSize: Int, p: Publisher[A])(implicit AA: Async[Task]): Stream[Task, A] =
-    Stream.eval(PublisherQueue[A](tag, p)).flatMap(s =>
-      Stream.eval(s.dequeue).repeat.through(pipe.rethrow).unNoneTerminate.rechunkN(chunkSize).onFinalize(s.onFinalize)
-    )
 
   //TODO: This needs to be tested against <a href="https://github.com/reactive-streams/reactive-streams-jvm/blob/v1.0.0/README.md#specification">reactive specification</a>
-  /** An implementation of a org.reactivestreams.Subscriber */
-  final class Subscriber[A](sub: PublisherQueue[Task, A]) extends RSubscriber[A] {
-    def onSubscribe(s: Subscription): Unit = {
-      nonNull(s)
-      sub.onSubscribe(s).unsafeRunAsync(_ => ())
-    }
-    def onNext(a: A): Unit = {
-      nonNull(a)
-      sub.onNext(a).unsafeRun()
-    }
-    def onComplete(): Unit = sub.onComplete.unsafeRun()
-    def onError(t: Throwable): Unit = {
-      nonNull(t)
-      sub.onError(t).unsafeRunAsync(_ => ())
-    }
 
-    private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
-  }
+  def apply[A]()(implicit AA: Async[Task]): Task[SubscriberQueue[Task, A]] = {
 
-  def apply[A](tag: String, p: Publisher[A])(implicit AA: Async[Task]): Task[PublisherQueue[Task, A]] = {
-
-    /** Represents the state of the PublisherQueue */
+    /** Represents the state of the SubscriberQueue */
     sealed trait State
 
     /** No downstream requests have been made (the downstream stream has not been pulled on) */
     case object Uninitialized extends State
 
-    /** The upstream publisher has received the subscriber, but not yet sent a subscription
+    /** The first downstream request has been made, but there is no subscription yet
       * 
       *  @req the first downstream request
       */
@@ -77,13 +80,13 @@ object PublisherQueue {
       * @sub the subscription to upstream
       * @req the request from downstream
       */
-    case class PendingElement(sub: Subscription, req: Async.Ref[Task, Attempt[Option[A]]]) extends State
+    case class PendingElement(sub: RSubscription, req: Async.Ref[Task, Attempt[Option[A]]]) extends State
 
     /** No downstream requests are open
       * 
       * @sub the subscription to upstream
       */
-    case class Idle(sub: Subscription) extends State
+    case class Idle(sub: RSubscription) extends State
 
     /** The upstream publisher has completed successfully */
     case object Complete extends State
@@ -95,17 +98,23 @@ object PublisherQueue {
     case class Errored(err: Throwable) extends State
 
     AA.refOf[State](Uninitialized).map { qref =>
-      new PublisherQueue[Task, A] {
+      new SubscriberQueue[Task, A] {
 
-
-        def onSubscribe(s: Subscription): Task[Unit] = qref.modify {
+        def onSubscribe(s: RSubscription): Task[Unit] = qref.modify {
           case FirstRequest(req) =>
+              logger.info(s"$this received subscription after request")
             PendingElement(s, req)
+          case Uninitialized =>
+              logger.info(s"$this received subscription when uninitialized")
+            Idle(s)
           case o =>
+              logger.info(s"$this received subscription in state $o")
             o
         }.flatMap { _.previous match {
           case _ : FirstRequest => 
             AA.delay(s.request(1))
+          case Uninitialized =>
+            AA.pure(())
           case o => 
             AA.delay(s.cancel()) >> AA.fail(new Error(s"received subscription in invalid state [$o]"))
         }}
@@ -119,7 +128,8 @@ object PublisherQueue {
           case PendingElement(s, r) => r.setPure(Attempt.success(Some(a)))
           case Cancelled => AA.pure(())
           case o => 
-            AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
+            //AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
+            AA.pure(())
         }}
 
         def onComplete(): Task[Unit] = qref.modify {
@@ -156,16 +166,17 @@ object PublisherQueue {
         }}
 
 
-        def dequeue: Task[Attempt[Option[A]]] = AA.ref[Attempt[Option[A]]].flatMap { r =>
+        def dequeue1: Task[Attempt[Option[A]]] = AA.ref[Attempt[Option[A]]].flatMap { r =>
           qref.modify {
             case Uninitialized =>
+              logger.info(s"$this received request when uninitialised")
               FirstRequest(r)
             case Idle(sub) =>
+              logger.info(s"$this received request when idle")
               PendingElement(sub, r)
             case o => o
           }.flatMap(c => c.previous match {
-            case Uninitialized => 
-              AA.delay(p.subscribe(new Subscriber(this))).flatMap(_ => r.get)
+            case Uninitialized => r.get
             case Idle(sub) =>
               AA.delay(sub.request(1)).flatMap( _ => r.get)
             case Errored(err) =>
