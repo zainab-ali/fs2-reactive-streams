@@ -8,6 +8,7 @@ scala:
 jdk:
  - oraclejdk8
 
+
 script:
   - sbt clean compile "testOnly fs2.interop.reactive.UnicastPublisherSpec"
 
