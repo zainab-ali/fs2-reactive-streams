@@ -59,7 +59,7 @@ class UnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironmen
       Stream[Task, Int]((1 until 20): _*).repeat
     } else Stream[Task, Int](1).repeat.scan(1)(_ + _).map {
       i => if(i > n) None else {
-        logger.info(s"outputting $i of $n at $timestamp")
+        logger.trace(s"outputting $i of $n at $timestamp")
         Some(i)
       }
     }.unNoneTerminate
