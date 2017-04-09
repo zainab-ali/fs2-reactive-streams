@@ -20,4 +20,7 @@ package object reactive {
 
   /** produces a unicast publisher from a stream */
   def toUnicastPublisher[A](s: Stream[Task, A])(implicit A: Async[Task]): UnicastPublisher[A] = new UnicastPublisher(s)
+
+  /** produces a multicast publisher from a stream */
+  def toMulticastPublisher[A](s: Stream[Task, A])(implicit A: Async[Task]): MulticastPublisher[A] = new MulticastPublisher(s)
 }

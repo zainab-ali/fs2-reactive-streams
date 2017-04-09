@@ -48,3 +48,25 @@ class UnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironmen
   //impossible to fail lazy unicast publisher
   def createFailedPublisher(): FailedPublisher = new FailedPublisher()
 }
+
+class MulticastPublisherSpec extends PublisherVerification[Int](new TestEnvironment()) with TestNGSuiteLike with LazyLogging {
+
+  implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "publisher-spec")
+
+  def createPublisher(n: Long): MulticastPublisher[Int] = {
+    val timestamp = System.nanoTime()
+    val els: Stream[Task, Int] = Stream[Task, Int](1).repeat.scan(1)(_ + _)
+    val s: Stream[Task, Int] = if(n == java.lang.Long.MAX_VALUE) els else els.map { i => if(i > n) None else Some(i) }.unNoneTerminate
+
+    val pub = reactive.toMulticastPublisher(s)
+    logger.debug(s"$pub creating multicast publisher for [$n] elements")
+    pub.start()
+    pub
+  }
+
+  def createFailedPublisher(): MulticastPublisher[Int] = {
+    val pub = reactive.toMulticastPublisher(Stream.eval(Task.delay[Int](throw new Error("BOOM!"))))
+    pub.start()
+    pub
+  }
+}
