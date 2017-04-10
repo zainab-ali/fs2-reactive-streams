@@ -19,24 +19,49 @@ class UnicastPublisher[A](val s: Stream[Task, A])(implicit AA: Async[Task]) exte
   }
 }
 
+object MulticastPublisher {
+  sealed trait State
+  case class Errored(err: Throwable) extends State
+  case object Normal extends State
+}
+
 class MulticastPublisher[A](val s: Stream[Task, A])(implicit AA: Async[Task]) extends RPublisher[A] with LazyLogging {
   logger.debug(s"$this creating new multicast publisher")
 
-  val topic = async.topic[Task,Option[A]](None).unsafeRun()
+  //any errors here should be fed into the subscribers
+  val topic = async.topic[Task,Attempt[Option[A]]](Attempt.success(None)).unsafeRun()
+  val state = async.signalOf[Task, MulticastPublisher.State](MulticastPublisher.Normal).unsafeRun()
 
-  def start(): Unit = {
-    s.map(Some(_)).through(topic.publish).run.unsafeRunAsync {
-      case Left(err) => logger.error(s"$this encountered error when publishing")
-      case Right(_) => logger.debug(s"$this completed successfully")
-    }
+  //any errors encountered should be fed into the state of the publisher
+  def run: Task[Unit] = {
+    s.attempt.map(_.map(Some(_))).evalMap { r => r match {
+      case Left(err) =>
+        logger.error(s"$this encountered error when publishing [$err]")
+        state.set(MulticastPublisher.Errored(err)).map(_ =>
+          logger.info(s"$this set state to errored")
+        ).as(r)
+      case Right(_) => Task.now(r)
+    }}.through(topic.publish).run
   }
 
+  //this seems hacky.  It's possible that there is an error in the topic, the signal not yet set, thus it gets ignored
   def subscribe(subscriber: RSubscriber[_ >: A]): Unit = {
     logger.debug(s"$this publisher has received subscriber")
-    val s = topic.subscribe(Int.MaxValue).filter(_.nonEmpty).map(_.get)
-    val subscription = UnicastPublisher.unicastSubscription(subscriber, s, this.toString).unsafeRun()
-    subscriber.onSubscribe(subscription)
-  }
+    state.get.flatMap {
+      case MulticastPublisher.Normal =>
+        logger.debug(s"$this publisher has received subscriber in normal state")
+        val s = topic.subscribe(Int.MaxValue).through(pipe.rethrow).filter(_.nonEmpty).map(_.get)
+        UnicastPublisher.unicastSubscription(subscriber, s, this.toString).map(subscriber.onSubscribe)
+      case MulticastPublisher.Errored(err) =>
+        logger.debug(s"$this publisher has received subscriber in error state")
+        val s = topic.subscribe(Int.MaxValue).through(pipe.rethrow).filter(_.nonEmpty).map(_.get)
+        UnicastPublisher.unicastSubscription(subscriber, s, this.toString).map { subscription =>
+          subscriber.onSubscribe(subscription)
+          subscriber.onError(err)
+        }
+        Task.now(())
+    }
+  }.unsafeRun()
 }
 
 object UnicastPublisher extends LazyLogging {
