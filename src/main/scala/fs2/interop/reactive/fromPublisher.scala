@@ -109,13 +109,13 @@ object SubscriberQueue extends LazyLogging {
         }.flatMap { _.previous match {
           case _ : FirstRequest => 
               logger.info(s"$this received subscription after request")
-            AA.delay(s.request(1))
+            AA.pure(s.request(1))
           case Uninitialized =>
               logger.info(s"$this received subscription when uninitialized")
             AA.pure(())
           case o => 
               logger.info(s"$this received subscription in invalid state [$o]")
-            AA.delay(s.cancel()) >> AA.fail(new Error(s"received subscription in invalid state [$o]"))
+            AA.pure(s.cancel()) >> AA.fail(new Error(s"received subscription in invalid state [$o]"))
         }}
 
         def onNext(a: A): Task[Unit] = qref.modify {
@@ -169,12 +169,12 @@ object SubscriberQueue extends LazyLogging {
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
             logger.info(s"$this finalized when pending elements")
-            AA.delay {
+            AA.pure {
             sub.cancel()
           } >> r.setPure(Attempt.success(None))
           case Idle(sub) =>
             logger.info(s"$this finalized when idle")
-            AA.delay {
+            AA.pure {
             sub.cancel()
           }
           case o =>
