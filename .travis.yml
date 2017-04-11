@@ -10,7 +10,7 @@ jdk:
 
 
 script:
-  - sbt clean compile "testOnly fs2.interop.reactive.SubscriberBlackboxSpec"
+  - sbt clean compile coverage test coverageReport
 
 after_success:
 - bash <(curl -s https://codecov.io/bash)
