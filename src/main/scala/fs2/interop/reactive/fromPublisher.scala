@@ -196,7 +196,7 @@ object SubscriberQueue extends LazyLogging {
               r.get
             case Idle(sub) =>
               logger.info(s"$this received request when idle [$sub]")
-              AA.delay(sub.request(1)).flatMap( _ => r.get)
+              AA.pure(sub.request(1)).flatMap( _ => r.get)
             case Errored(err) =>
               logger.error(s"$this dequeueing error [${err}]")
               AA.pure(Attempt.failure(err))
