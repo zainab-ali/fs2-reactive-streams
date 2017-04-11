@@ -13,6 +13,7 @@ import org.testng.Assert._
 
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
 import org.{reactivestreams => rs}
+import com.typesafe.scalalogging.LazyLogging
 
 class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new TestEnvironment()) with TestNGSuiteLike {
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "subscriber-spec")
@@ -57,7 +58,7 @@ final class WhiteboxSubscriber[A](sub: Subscriber[A],
   }
 }
 
-class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new TestEnvironment()) with TestNGSuiteLike {
+class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike with LazyLogging {
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(2, "subscriber-blackbox-spec")
   private val counter = new AtomicInteger()
@@ -65,10 +66,10 @@ class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new Tes
     reactive.subscriber[Int]().unsafeRun()
 
   override def triggerRequest(s: rs.Subscriber[_ >: Int]): Unit = {
-    println("triggering request")
+    logger.info(s"triggering request for $s")
     s.asInstanceOf[Subscriber[Int]].sub.dequeue1.unsafeRunAsync {
-      case Left(e) => println(e)
-      case Right(o) => println(o)
+      case Left(e) => logger.error(s"received error $e")
+      case Right(o) => logger.info(s"received element $o")
     }
   }
 
