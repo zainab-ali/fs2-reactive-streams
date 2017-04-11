@@ -102,20 +102,19 @@ object SubscriberQueue extends LazyLogging {
 
         def onSubscribe(s: RSubscription): Task[Unit] = qref.modify {
           case FirstRequest(req) =>
-              logger.info(s"$this received subscription after request")
             PendingElement(s, req)
           case Uninitialized =>
-              logger.info(s"$this received subscription when uninitialized")
             Idle(s)
-          case o =>
-              logger.info(s"$this received subscription in state $o")
-            o
+          case o => o
         }.flatMap { _.previous match {
           case _ : FirstRequest => 
+              logger.info(s"$this received subscription after request")
             AA.delay(s.request(1))
           case Uninitialized =>
+              logger.info(s"$this received subscription when uninitialized")
             AA.pure(())
           case o => 
+              logger.info(s"$this received subscription in invalid state [$o]")
             AA.delay(s.cancel()) >> AA.fail(new Error(s"received subscription in invalid state [$o]"))
         }}
 
@@ -125,9 +124,14 @@ object SubscriberQueue extends LazyLogging {
           case o =>
             o
         }.flatMap { c => c.previous match {
-          case PendingElement(s, r) => r.setPure(Attempt.success(Some(a)))
-          case Cancelled => AA.pure(())
+          case PendingElement(s, r) =>
+              logger.info(s"$this delivering next element [$a]")
+            r.setPure(Attempt.success(Some(a)))
+          case Cancelled =>
+              logger.info(s"$this was cancelled.  Not delivering [$a]")
+            AA.pure(())
           case o => 
+              logger.error(s"$this received record [$a] in invalid state [$o]")
             //AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
             AA.pure(())
         }}
@@ -137,16 +141,23 @@ object SubscriberQueue extends LazyLogging {
             Complete
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
+              logger.info(s"$this completed while pending elements")
             r.setPure(Attempt.success(None))
-          case o => AA.pure(())
+          case o =>
+            logger.info(s"$this completed in state [$o]")
+            AA.pure(())
         }}
 
         def onError(t: Throwable): Task[Unit] = qref.modify {
           case _ => 
             Errored(t)
         }.flatMap { _.previous match {
-          case PendingElement(sub, r) => r.setPure(Attempt.failure(t))
-          case o => AA.pure(())
+          case PendingElement(sub, r) =>
+            logger.error(s"$this errored with [$t]")
+            r.setPure(Attempt.failure(t))
+          case o =>
+            logger.error(s"$this errored with [$t]")
+            AA.pure(())
         }}
 
 
@@ -156,34 +167,44 @@ object SubscriberQueue extends LazyLogging {
           case o => 
             o
         }.flatMap { _.previous match {
-          case PendingElement(sub, r) => AA.delay {
+          case PendingElement(sub, r) =>
+            logger.info(s"$this finalized when pending elements")
+            AA.delay {
             sub.cancel()
           } >> r.setPure(Attempt.success(None))
-          case Idle(sub) => AA.delay {
+          case Idle(sub) =>
+            logger.info(s"$this finalized when idle")
+            AA.delay {
             sub.cancel()
           }
-          case o => AA.pure(())
+          case o =>
+            logger.info(s"$this finalized in state [$o]")
+            AA.pure(())
         }}
 
 
         def dequeue1: Task[Attempt[Option[A]]] = AA.ref[Attempt[Option[A]]].flatMap { r =>
           qref.modify {
             case Uninitialized =>
-              logger.info(s"$this received request when uninitialised")
               FirstRequest(r)
             case Idle(sub) =>
-              logger.info(s"$this received request when idle")
               PendingElement(sub, r)
             case o => o
           }.flatMap(c => c.previous match {
-            case Uninitialized => r.get
+            case Uninitialized =>
+              logger.info(s"$this received request when uninitialised")
+              r.get
             case Idle(sub) =>
+              logger.info(s"$this received request when idle [$sub]")
               AA.delay(sub.request(1)).flatMap( _ => r.get)
             case Errored(err) =>
+              logger.error(s"$this dequeueing error [${err}]")
               AA.pure(Attempt.failure(err))
             case Complete =>
+              logger.info(s"$this dequeueing completed")
               AA.pure(Attempt.success(None))
             case FirstRequest(_) | PendingElement(_, _) | Cancelled =>
+              logger.error(s"$this received request in invalid state [${c.previous}]")
               AA.pure(Attempt.failure(new Error(s"received request in invalid state [${c.previous}]")))
           })
         }
