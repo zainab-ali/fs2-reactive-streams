@@ -133,10 +133,8 @@ object StreamSubscriber {
             logger.trace(s"$this received element [$a] after cancellation")
             AA.pure(())
           case o =>
-            logger.warn(s"$this received record [$a] in invalid state [$o]")
-            //TODO: 
-            //AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
-            AA.pure(())
+            logger.error(s"$this received record [$a] in invalid state [$o]")
+            AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
         }}
 
         def onComplete(): Task[Unit] = qref.modify {

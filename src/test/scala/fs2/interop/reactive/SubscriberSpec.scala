@@ -38,7 +38,7 @@ final class WhiteboxSubscriber[A](sub: StreamSubscriber[A],
     sub.onSubscribe(s)
     probe.registerOnSubscribe(new SubscriberPuppet {
       override def triggerRequest(elements: Long): Unit = {
-        s.request(elements)
+        (0 to elements.toInt).foldLeft(Task.now[Unit](()))((t, _) => t.flatMap( _ => sub.sub.dequeue1.map(_ => ()))).unsafeRunAsync(_ => ())
       }
 
       override def signalCancel(): Unit = {
