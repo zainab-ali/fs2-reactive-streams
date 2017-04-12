@@ -26,7 +26,7 @@ class FailedPublisher extends rs.Publisher[Int] {
   }
 }
 
-class UnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment()) with TestNGSuiteLike with LazyLogging {
+class UnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike with LazyLogging {
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "publisher-spec")
 
