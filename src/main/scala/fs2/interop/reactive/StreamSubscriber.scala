@@ -6,12 +6,12 @@ import fs2.util._
 import fs2.util.syntax._
 import fs2.async.mutable._
 
-import org.reactivestreams.{Subscriber => RSubscriber, Publisher => RPublisher, Subscription => RSubscription}
+import org.reactivestreams._
 import com.typesafe.scalalogging.LazyLogging
 
 /** An implementation of a org.reactivestreams.Subscriber */
-final class Subscriber[A](val sub: SubscriberQueue[Task, A]) extends RSubscriber[A] {
-  def onSubscribe(s: RSubscription): Unit = {
+final class StreamSubscriber[A](val sub: StreamSubscriber.Queue[Task, A]) extends Subscriber[A] {
+  def onSubscribe(s: Subscription): Unit = {
     nonNull(s)
     sub.onSubscribe(s).unsafeRunAsync(_ => ())
   }
@@ -30,40 +30,40 @@ final class Subscriber[A](val sub: SubscriberQueue[Task, A]) extends RSubscriber
   private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
 }
 
-/** Dequeues from an upstream publisher */
-trait SubscriberQueue[F[_], A] {
+object StreamSubscriber extends LazyLogging {
 
-  /** receives a subscription from upstream */
-  def onSubscribe(s: RSubscription): F[Unit]
+  /** Dequeues from an upstream publisher */
+  trait Queue[F[_], A] {
 
-  /** receives next record from upstream */
-  def onNext(a: A): F[Unit]
+    /** receives a subscription from upstream */
+    def onSubscribe(s: Subscription): F[Unit]
 
-  /** receives error from upstream */
-  def onError(t: Throwable): F[Unit] 
-  
-  /** called when upstream has finished sending records */
-  def onComplete: F[Unit] 
+    /** receives next record from upstream */
+    def onNext(a: A): F[Unit]
 
-  /** called when downstream has finished consuming records */
-  def onFinalize: F[Unit] 
+    /** receives error from upstream */
+    def onError(t: Throwable): F[Unit]
+    
+    /** called when upstream has finished sending records */
+    def onComplete: F[Unit]
 
-  /** producer for downstream */
-  def dequeue1: F[Attempt[Option[A]]]
+    /** called when downstream has finished consuming records */
+    def onFinalize: F[Unit]
 
-  /** downstream stream */
-  def stream()(implicit A: Applicative[F]): Stream[F, A] = 
-    Stream.eval(dequeue1).repeat.through(pipe.rethrow).unNoneTerminate.onFinalize(onFinalize)
-}
+    /** producer for downstream */
+    def dequeue1: F[Attempt[Option[A]]]
 
-object SubscriberQueue extends LazyLogging {
+    /** downstream stream */
+    def stream()(implicit A: Applicative[F]): Stream[F, A] =
+      Stream.eval(dequeue1).repeat.through(pipe.rethrow).unNoneTerminate.onFinalize(onFinalize)
+  }
 
 
-  //TODO: This needs to be tested against <a href="https://github.com/reactive-streams/reactive-streams-jvm/blob/v1.0.0/README.md#specification">reactive specification</a>
+  def apply[A]()(implicit AA: Async[Task]): Task[StreamSubscriber[A]] = queue[A]().map(new StreamSubscriber(_))
 
-  def apply[A]()(implicit AA: Async[Task]): Task[SubscriberQueue[Task, A]] = {
+  def queue[A]()(implicit AA: Async[Task]): Task[Queue[Task, A]] = {
 
-    /** Represents the state of the SubscriberQueue */
+    /** Represents the state of the Queue */
     sealed trait State
 
     /** No downstream requests have been made (the downstream stream has not been pulled on) */
@@ -80,13 +80,13 @@ object SubscriberQueue extends LazyLogging {
       * @sub the subscription to upstream
       * @req the request from downstream
       */
-    case class PendingElement(sub: RSubscription, req: Async.Ref[Task, Attempt[Option[A]]]) extends State
+    case class PendingElement(sub: Subscription, req: Async.Ref[Task, Attempt[Option[A]]]) extends State
 
     /** No downstream requests are open
       * 
       * @sub the subscription to upstream
       */
-    case class Idle(sub: RSubscription) extends State
+    case class Idle(sub: Subscription) extends State
 
     /** The upstream publisher has completed successfully */
     case object Complete extends State
@@ -98,23 +98,23 @@ object SubscriberQueue extends LazyLogging {
     case class Errored(err: Throwable) extends State
 
     AA.refOf[State](Uninitialized).map { qref =>
-      new SubscriberQueue[Task, A] {
+      new Queue[Task, A] {
 
-        def onSubscribe(s: RSubscription): Task[Unit] = qref.modify {
+        def onSubscribe(s: Subscription): Task[Unit] = qref.modify {
           case FirstRequest(req) =>
             PendingElement(s, req)
           case Uninitialized =>
             Idle(s)
           case o => o
         }.flatMap { _.previous match {
-          case _ : FirstRequest => 
-              logger.info(s"$this received subscription after request")
+          case _ : FirstRequest =>
+            logger.info(s"$this received subscription after request")
             AA.pure(s.request(1))
           case Uninitialized =>
-              logger.info(s"$this received subscription when uninitialized")
+            logger.info(s"$this received subscription when uninitialized")
             AA.pure(())
-          case o => 
-              logger.info(s"$this received subscription in invalid state [$o]")
+          case o =>
+            logger.info(s"$this received subscription in invalid state [$o]")
             AA.pure(s.cancel()) >> AA.fail(new Error(s"received subscription in invalid state [$o]"))
         }}
 
@@ -125,23 +125,23 @@ object SubscriberQueue extends LazyLogging {
             o
         }.flatMap { c => c.previous match {
           case PendingElement(s, r) =>
-              logger.info(s"$this delivering next element [$a]")
+            logger.info(s"$this delivering next element [$a]")
             r.setPure(Attempt.success(Some(a)))
           case Cancelled =>
-              logger.info(s"$this was cancelled.  Not delivering [$a]")
+            logger.info(s"$this was cancelled.  Not delivering [$a]")
             AA.pure(())
-          case o => 
-              logger.error(s"$this received record [$a] in invalid state [$o]")
+          case o =>
+            logger.error(s"$this received record [$a] in invalid state [$o]")
             //AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
             AA.pure(())
         }}
 
         def onComplete(): Task[Unit] = qref.modify {
-          case _ => 
+          case _ =>
             Complete
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
-              logger.info(s"$this completed while pending elements")
+            logger.info(s"$this completed while pending elements")
             r.setPure(Attempt.success(None))
           case o =>
             logger.info(s"$this completed in state [$o]")
@@ -149,7 +149,7 @@ object SubscriberQueue extends LazyLogging {
         }}
 
         def onError(t: Throwable): Task[Unit] = qref.modify {
-          case _ => 
+          case _ =>
             Errored(t)
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
@@ -162,21 +162,21 @@ object SubscriberQueue extends LazyLogging {
 
 
         def onFinalize: Task[Unit] = qref.modify {
-          case PendingElement(_, _) | Idle(_) => 
+          case PendingElement(_, _) | Idle(_) =>
             Cancelled
-          case o => 
+          case o =>
             o
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
             logger.info(s"$this finalized when pending elements")
             AA.pure {
-            sub.cancel()
-          } >> r.setPure(Attempt.success(None))
+              sub.cancel()
+            } >> r.setPure(Attempt.success(None))
           case Idle(sub) =>
             logger.info(s"$this finalized when idle")
             AA.pure {
-            sub.cancel()
-          }
+              sub.cancel()
+            }
           case o =>
             logger.info(s"$this finalized in state [$o]")
             AA.pure(())
