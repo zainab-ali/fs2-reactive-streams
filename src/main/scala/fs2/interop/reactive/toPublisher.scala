@@ -10,13 +10,58 @@ import org.reactivestreams.{Subscriber => RSubscriber, Publisher => RPublisher, 
 import com.typesafe.scalalogging.LazyLogging
 
 class UnicastPublisher[A](val s: Stream[Task, A])(implicit AA: Async[Task]) extends RPublisher[A] with LazyLogging {
-  logger.debug(s"$this creating new publisher")
+  logger.debug(s"$this creating new unicast publisher")
 
   def subscribe(subscriber: RSubscriber[_ >: A]): Unit = {
-    val subscription = UnicastPublisher.unicastSubscription(subscriber, s, this).unsafeRun()
+    val subscription = UnicastPublisher.unicastSubscription(subscriber, s, this.toString).unsafeRun()
     logger.debug(s"$this publisher has received subscriber")
     subscriber.onSubscribe(subscription)
   }
+}
+
+object MulticastPublisher {
+  sealed trait State
+  case class Errored(err: Throwable) extends State
+  case object Normal extends State
+}
+
+class MulticastPublisher[A](val s: Stream[Task, A])(implicit AA: Async[Task]) extends RPublisher[A] with LazyLogging {
+  logger.debug(s"$this creating new multicast publisher")
+
+  //any errors here should be fed into the subscribers
+  val topic = async.topic[Task,Attempt[Option[A]]](Attempt.success(None)).unsafeRun()
+  val state = async.signalOf[Task, MulticastPublisher.State](MulticastPublisher.Normal).unsafeRun()
+
+  //any errors encountered should be fed into the state of the publisher
+  def run: Task[Unit] = {
+    s.attempt.map(_.map(Some(_))).evalMap { r => r match {
+      case Left(err) =>
+        logger.error(s"$this encountered error when publishing [$err]")
+        state.set(MulticastPublisher.Errored(err)).map(_ =>
+          logger.info(s"$this set state to errored")
+        ).as(r)
+      case Right(_) => Task.now(r)
+    }}.through(topic.publish).run
+  }
+
+  //this seems hacky.  It's possible that there is an error in the topic, the signal not yet set, thus it gets ignored
+  def subscribe(subscriber: RSubscriber[_ >: A]): Unit = {
+    logger.debug(s"$this publisher has received subscriber")
+    state.get.flatMap {
+      case MulticastPublisher.Normal =>
+        logger.debug(s"$this publisher has received subscriber in normal state")
+        val s = topic.subscribe(Int.MaxValue).through(pipe.rethrow).filter(_.nonEmpty).map(_.get)
+        UnicastPublisher.unicastSubscription(subscriber, s, this.toString).map(subscriber.onSubscribe)
+      case MulticastPublisher.Errored(err) =>
+        logger.debug(s"$this publisher has received subscriber in error state")
+        val s = topic.subscribe(Int.MaxValue).through(pipe.rethrow).filter(_.nonEmpty).map(_.get)
+        UnicastPublisher.unicastSubscription(subscriber, s, this.toString).map { subscription =>
+          subscriber.onSubscribe(subscription)
+          subscriber.onError(err)
+        }
+        Task.now(())
+    }
+  }.unsafeRun()
 }
 
 object UnicastPublisher extends LazyLogging {
@@ -28,7 +73,7 @@ object UnicastPublisher extends LazyLogging {
   case object Cancellation extends Throwable
   case class InvalidNumber(n: Long) extends Throwable with State
 
-  final class UnicastSubscription[F[_], A](requests: Queue[F, State], sub: RSubscriber[A], stream: Stream[F, A], pub: UnicastPublisher[_])(implicit A: Async[F]) extends RSubscription {
+  final class UnicastSubscription[F[_], A](requests: Queue[F, State], sub: RSubscriber[A], stream: Stream[F, A], pub: String)(implicit A: Async[F]) extends RSubscription {
 
     (stream through demandPipe(requests.dequeueAvailable, pub)).map { a =>
       logger.trace(s"$pub delivering element [$a]")
@@ -67,7 +112,7 @@ object UnicastPublisher extends LazyLogging {
     }
   }
 
-  def demandPipe[F[_], A](state: Stream[F, State], pub: UnicastPublisher[_])(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
+  def demandPipe[F[_], A](state: Stream[F, State], pub: String)(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
 
     def go(ah: Handle[F, A], sh: Handle[F, State]): Pull[F, A, A] =
       sh.receive1 {
@@ -170,7 +215,7 @@ object UnicastPublisher extends LazyLogging {
     s.pull2(o)(go)
   }
 
-  def unicastSubscription[F[_], A](sub: RSubscriber[A], stream: Stream[F, A], pub: UnicastPublisher[_])(implicit A: Async[F]): F[UnicastSubscription[F, A]] =
+  def unicastSubscription[F[_], A](sub: RSubscriber[A], stream: Stream[F, A], pub: String)(implicit A: Async[F]): F[UnicastSubscription[F, A]] =
     async.unboundedQueue[F, State].map { requests =>
       new UnicastSubscription(requests, sub, stream, pub)
     }
