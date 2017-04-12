@@ -12,29 +12,30 @@ import org.testng.annotations._
 import org.testng.Assert._
 
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
-import org.{reactivestreams => rs}
+import org.reactivestreams._
 import com.typesafe.scalalogging.LazyLogging
 
 class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "subscriber-spec")
   private val counter = new AtomicInteger()
-  def createSubscriber(p: SubscriberWhiteboxVerification.WhiteboxSubscriberProbe[Int]): rs.Subscriber[Int] =
-    SubscriberQueue[Int]().map { s =>
-      new WhiteboxSubscriber(new Subscriber(s), p)
+  def createSubscriber(p: SubscriberWhiteboxVerification.WhiteboxSubscriberProbe[Int]): Subscriber[Int] =
+    StreamSubscriber[Int]().map { s =>
+      new WhiteboxSubscriber(s, p)
     }.unsafeRun()
+
   def createElement(i: Int): Int = counter.getAndIncrement
 }
 
 
-final class WhiteboxSubscriber[A](sub: Subscriber[A],
-  probe: WhiteboxSubscriberProbe[A]) extends rs.Subscriber[A] {
+final class WhiteboxSubscriber[A](sub: StreamSubscriber[A],
+  probe: WhiteboxSubscriberProbe[A]) extends Subscriber[A] {
 
   def onError(t: Throwable): Unit = {
     sub.onError(t)
     probe.registerOnError(t)
   }
 
-  def onSubscribe(s: rs.Subscription): Unit = {
+  def onSubscribe(s: Subscription): Unit = {
     sub.onSubscribe(s)
     probe.registerOnSubscribe(new SubscriberPuppet {
       override def triggerRequest(elements: Long): Unit = {
@@ -62,12 +63,11 @@ class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new Tes
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(2, "subscriber-blackbox-spec")
   private val counter = new AtomicInteger()
-  def createSubscriber(): rs.Subscriber[Int] =
-    reactive.subscriber[Int]().unsafeRun()
+  def createSubscriber(): StreamSubscriber[Int] = StreamSubscriber[Int]().unsafeRun()
 
-  override def triggerRequest(s: rs.Subscriber[_ >: Int]): Unit = {
+  override def triggerRequest(s: Subscriber[_ >: Int]): Unit = {
     logger.info(s"triggering request for $s")
-    s.asInstanceOf[Subscriber[Int]].sub.dequeue1.unsafeRunAsync {
+    s.asInstanceOf[StreamSubscriber[Int]].sub.dequeue1.unsafeRunAsync {
       case Left(e) => logger.error(s"received error $e")
       case Right(o) => logger.info(s"received element $o")
     }

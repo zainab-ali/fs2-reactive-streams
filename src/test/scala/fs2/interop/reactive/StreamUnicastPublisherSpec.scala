@@ -11,26 +11,27 @@ import org.testng.annotations._
 import org.testng.Assert._
 
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
-import org.{reactivestreams => rs}
+import org.reactivestreams._
 import com.typesafe.scalalogging.LazyLogging
 
-class FailedSubscription(sub: rs.Subscriber[_]) extends rs.Subscription {
+class FailedSubscription(sub: Subscriber[_]) extends Subscription {
   def cancel(): Unit = {}
   def request(n: Long): Unit = {}
 }
-class FailedPublisher extends rs.Publisher[Int] {
 
-  def subscribe(subscriber: rs.Subscriber[_ >: Int]): Unit = {
+class FailedPublisher extends Publisher[Int] {
+
+  def subscribe(subscriber: Subscriber[_ >: Int]): Unit = {
     subscriber.onSubscribe(new FailedSubscription(subscriber))
     subscriber.onError(new Error(""))
   }
 }
 
-class UnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike with LazyLogging {
+class StreamUnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike with LazyLogging {
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "publisher-spec")
 
-  def createPublisher(n: Long): UnicastPublisher[Int] = {
+  def createPublisher(n: Long): StreamUnicastPublisher[Int] = {
     val timestamp = System.nanoTime()
     val s: Stream[Task, Int] = if(n == java.lang.Long.MAX_VALUE) {
       Stream[Task, Int]((1 until 20): _*).repeat
@@ -40,11 +41,10 @@ class UnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironmen
         Some(i)
       }
     }.unNoneTerminate
-    val pub = reactive.toUnicastPublisher(s)
+    val pub = s.toUnicastPublisher()
     logger.debug(s"$pub creating publisher for [$n] elements")
     pub
   }
 
-  //impossible to fail lazy unicast publisher
   def createFailedPublisher(): FailedPublisher = new FailedPublisher()
 }

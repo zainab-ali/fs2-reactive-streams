@@ -6,21 +6,50 @@ import fs2.util._
 import fs2.util.syntax._
 import fs2.async.mutable._
 
-import org.reactivestreams.{Subscriber => RSubscriber, Publisher => RPublisher, Subscription => RSubscription}
+import org.reactivestreams._
 import com.typesafe.scalalogging.LazyLogging
 
-class UnicastPublisher[A](val s: Stream[Task, A])(implicit AA: Async[Task]) extends RPublisher[A] with LazyLogging {
-  logger.debug(s"$this creating new publisher")
+final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.State], sub: Subscriber[A], stream: Stream[F, A], publisherName: String)(implicit A: Async[F]) extends Subscription with LazyLogging {
+  import StreamSubscription._
 
-  def subscribe(subscriber: RSubscriber[_ >: A]): Unit = {
-    val subscription = UnicastPublisher.unicastSubscription(subscriber, s, this).unsafeRun()
-    logger.debug(s"$this publisher has received subscriber")
-    subscriber.onSubscribe(subscription)
+  (stream through demandPipe(requests.dequeueAvailable, publisherName)).map { a =>
+    logger.trace(s"$publisherName-$this delivering element [$a]")
+    sub.onNext(a)
+  }.run.unsafeRunAsync {
+    case Left(Cancellation) =>
+      logger.error(s"$publisherName-$this finished with cancellation from downstream")
+    case Left(InvalidNumber(n)) =>
+      logger.error(s"$publisherName-$this finished with invalid number [$n]")
+      sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]"))
+    case Left(err) =>
+      logger.error(s"$publisherName-$this finished with error [$err]")
+      sub.onError(err)
+    case Right(_) =>
+      logger.info(s"$publisherName-$this completed normally")
+      sub.onComplete()
+  }
+
+  def cancel(): Unit = {
+    logger.debug(s"$publisherName-$this cancellation received from downstream")
+    requests.enqueue1(Cancelled).unsafeRunAsync(_ => ())
+  }
+  def request(n: Long): Unit = {
+    if(n == java.lang.Long.MAX_VALUE) {
+      logger.debug(s"$publisherName-$this received request for an infinite number of elements")
+      requests.enqueue1(InfiniteRequests).unsafeRunAsync(_ => ())
+    }
+    else if(n > 0) {
+      logger.debug(s"$publisherName-$this received request for [$n] elements")
+      requests.enqueue1(FiniteRequests(n, 0)).unsafeRunAsync(_ => ())
+    }
+    else {
+      logger.error(s"$publisherName-$this received request for an invalid number of elements [$n]")
+      requests.enqueue1(InvalidNumber(n)).unsafeRunAsync(_ => ())
+    }
   }
 }
 
-object UnicastPublisher extends LazyLogging {
-
+object StreamSubscription extends LazyLogging {
   sealed trait State
   case object InfiniteRequests extends State
   case class FiniteRequests(n: Long, counter: Long) extends State
@@ -28,46 +57,13 @@ object UnicastPublisher extends LazyLogging {
   case object Cancellation extends Throwable
   case class InvalidNumber(n: Long) extends Throwable with State
 
-  final class UnicastSubscription[F[_], A](requests: Queue[F, State], sub: RSubscriber[A], stream: Stream[F, A], pub: UnicastPublisher[_])(implicit A: Async[F]) extends RSubscription {
 
-    (stream through demandPipe(requests.dequeueAvailable, pub)).map { a =>
-      logger.trace(s"$pub delivering element [$a]")
-      sub.onNext(a)
-    }.run.unsafeRunAsync {
-      case Left(Cancellation) =>
-        logger.error(s"$pub finished with cancellation from downstream")
-      case Left(InvalidNumber(n)) =>
-        logger.error(s"$pub finished with invalid number [$n]")
-        sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]"))
-      case Left(err) =>
-        logger.error(s"$pub finished with error [$err]")
-        sub.onError(err)
-      case Right(_) =>
-        logger.info(s"$pub completed normally")
-        sub.onComplete()
+  def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A], pub: String)(implicit A: Async[F]): F[StreamSubscription[F, A]] =
+    async.unboundedQueue[F, State].map { requests =>
+      new StreamSubscription(requests, sub, stream, pub)
     }
 
-    def cancel(): Unit = {
-      logger.debug(s"$pub cancellation received from downstream")
-      requests.enqueue1(Cancelled).unsafeRunAsync(_ => ())
-    }
-    def request(n: Long): Unit = {
-      if(n == java.lang.Long.MAX_VALUE) {
-        logger.debug(s"$pub received request for an infinite number of elements")
-        requests.enqueue1(InfiniteRequests).unsafeRunAsync(_ => ())
-      }
-      else if(n > 0) {
-        logger.debug(s"$pub received request for [$n] elements")
-        requests.enqueue1(FiniteRequests(n, 0)).unsafeRunAsync(_ => ())
-      }
-      else {
-        logger.error(s"$pub received request for an invalid number of elements [$n]")
-        requests.enqueue1(InvalidNumber(n)).unsafeRunAsync(_ => ())
-      }
-    }
-  }
-
-  def demandPipe[F[_], A](state: Stream[F, State], pub: UnicastPublisher[_])(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
+  def demandPipe[F[_], A](state: Stream[F, State], pub: String)(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
 
     def go(ah: Handle[F, A], sh: Handle[F, State]): Pull[F, A, A] =
       sh.receive1 {
@@ -169,9 +165,4 @@ object UnicastPublisher extends LazyLogging {
     }
     s.pull2(o)(go)
   }
-
-  def unicastSubscription[F[_], A](sub: RSubscriber[A], stream: Stream[F, A], pub: UnicastPublisher[_])(implicit A: Async[F]): F[UnicastSubscription[F, A]] =
-    async.unboundedQueue[F, State].map { requests =>
-      new UnicastSubscription(requests, sub, stream, pub)
-    }
 }
