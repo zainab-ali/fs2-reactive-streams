@@ -13,7 +13,6 @@ import org.testng.Assert._
 
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
 import org.reactivestreams._
-import com.typesafe.scalalogging.LazyLogging
 
 class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "subscriber-spec")
@@ -59,18 +58,14 @@ final class WhiteboxSubscriber[A](sub: StreamSubscriber[A],
   }
 }
 
-class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike with LazyLogging {
+class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(2, "subscriber-blackbox-spec")
   private val counter = new AtomicInteger()
   def createSubscriber(): StreamSubscriber[Int] = StreamSubscriber[Int]().unsafeRun()
 
   override def triggerRequest(s: Subscriber[_ >: Int]): Unit = {
-    logger.info(s"triggering request for $s")
-    s.asInstanceOf[StreamSubscriber[Int]].sub.dequeue1.unsafeRunAsync {
-      case Left(e) => logger.error(s"received error $e")
-      case Right(o) => logger.info(s"received element $o")
-    }
+    s.asInstanceOf[StreamSubscriber[Int]].sub.dequeue1.unsafeRunAsync(_ => ())
   }
 
   def createElement(i: Int): Int = counter.incrementAndGet()

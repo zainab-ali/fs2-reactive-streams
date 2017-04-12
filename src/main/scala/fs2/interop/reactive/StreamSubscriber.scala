@@ -7,7 +7,7 @@ import fs2.util.syntax._
 import fs2.async.mutable._
 
 import org.reactivestreams._
-import com.typesafe.scalalogging.LazyLogging
+import org.log4s._
 
 /** An implementation of a org.reactivestreams.Subscriber */
 final class StreamSubscriber[A](val sub: StreamSubscriber.Queue[Task, A]) extends Subscriber[A] {
@@ -30,7 +30,9 @@ final class StreamSubscriber[A](val sub: StreamSubscriber.Queue[Task, A]) extend
   private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
 }
 
-object StreamSubscriber extends LazyLogging {
+object StreamSubscriber {
+
+  private[this] val logger = getLogger
 
   /** Dequeues from an upstream publisher */
   trait Queue[F[_], A] {
@@ -125,13 +127,14 @@ object StreamSubscriber extends LazyLogging {
             o
         }.flatMap { c => c.previous match {
           case PendingElement(s, r) =>
-            logger.info(s"$this delivering next element [$a]")
+            logger.trace(s"$this delivering next element [$a]")
             r.setPure(Attempt.success(Some(a)))
           case Cancelled =>
-            logger.info(s"$this was cancelled.  Not delivering [$a]")
+            logger.trace(s"$this received element [$a] after cancellation")
             AA.pure(())
           case o =>
-            logger.error(s"$this received record [$a] in invalid state [$o]")
+            logger.warn(s"$this received record [$a] in invalid state [$o]")
+            //TODO: 
             //AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
             AA.pure(())
         }}
@@ -141,7 +144,7 @@ object StreamSubscriber extends LazyLogging {
             Complete
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
-            logger.info(s"$this completed while pending elements")
+            logger.info(s"$this completed while waiting for elements")
             r.setPure(Attempt.success(None))
           case o =>
             logger.info(s"$this completed in state [$o]")
@@ -153,10 +156,10 @@ object StreamSubscriber extends LazyLogging {
             Errored(t)
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
-            logger.error(s"$this errored with [$t]")
+            logger.warn(s"$this received error from upstream [$t]")
             r.setPure(Attempt.failure(t))
           case o =>
-            logger.error(s"$this errored with [$t]")
+            logger.warn(s"$this received error from upstream [$t]")
             AA.pure(())
         }}
 
@@ -166,19 +169,18 @@ object StreamSubscriber extends LazyLogging {
             Cancelled
           case o =>
             o
-        }.flatMap { _.previous match {
+        }.flatMap { o =>
+          logger.info(s"$this cancelled from downstream in state [${o.previous}]")
+          o.previous match {
           case PendingElement(sub, r) =>
-            logger.info(s"$this finalized when pending elements")
             AA.pure {
               sub.cancel()
             } >> r.setPure(Attempt.success(None))
           case Idle(sub) =>
-            logger.info(s"$this finalized when idle")
             AA.pure {
               sub.cancel()
             }
           case o =>
-            logger.info(s"$this finalized in state [$o]")
             AA.pure(())
         }}
 
@@ -195,13 +197,13 @@ object StreamSubscriber extends LazyLogging {
               logger.info(s"$this received request when uninitialised")
               r.get
             case Idle(sub) =>
-              logger.info(s"$this received request when idle [$sub]")
+              logger.info(s"$this received request after subscription [$sub]")
               AA.pure(sub.request(1)).flatMap( _ => r.get)
             case Errored(err) =>
-              logger.error(s"$this dequeueing error [${err}]")
+              logger.warn(s"$this received error from upstream [$err]")
               AA.pure(Attempt.failure(err))
             case Complete =>
-              logger.info(s"$this dequeueing completed")
+              logger.info(s"$this upstream completed")
               AA.pure(Attempt.success(None))
             case FirstRequest(_) | PendingElement(_, _) | Cancelled =>
               logger.error(s"$this received request in invalid state [${c.previous}]")
