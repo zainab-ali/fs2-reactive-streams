@@ -7,14 +7,15 @@ import fs2.util.syntax._
 import fs2.async.mutable._
 
 import org.reactivestreams._
-import com.typesafe.scalalogging.LazyLogging
+import org.log4s._
 
-class StreamUnicastPublisher[A](val s: Stream[Task, A])(implicit AA: Async[Task]) extends Publisher[A] with LazyLogging {
-  logger.debug(s"$this creating new publisher")
+class StreamUnicastPublisher[A](val s: Stream[Task, A])(implicit AA: Async[Task]) extends Publisher[A] {
+
+  private[this] val logger = getLogger
 
   def subscribe(subscriber: Subscriber[_ >: A]): Unit = {
-    val subscription = StreamSubscription(subscriber, s, this.toString).unsafeRun()
     logger.debug(s"$this publisher has received subscriber")
+    val subscription = StreamSubscription(subscriber, s, this.toString).unsafeRun()
     subscriber.onSubscribe(subscription)
   }
 }

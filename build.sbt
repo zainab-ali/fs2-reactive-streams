@@ -33,7 +33,7 @@ lazy val commonSettings = Seq(
     libraryDependencies ++= Seq(
       "co.fs2" %% "fs2-core" % "0.9.4",
       "org.reactivestreams" % "reactive-streams" % "1.0.0",
-      "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
+      "org.log4s" %% "log4s" % "1.3.4",
       "org.scalatest" %% "scalatest" % "3.0.1" % "test",
       "org.reactivestreams" % "reactive-streams-tck" % "1.0.0" % "test",
       "org.slf4j" % "slf4j-simple" % "1.7.25" % "test"

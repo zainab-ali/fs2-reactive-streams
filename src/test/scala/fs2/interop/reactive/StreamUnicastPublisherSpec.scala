@@ -12,7 +12,6 @@ import org.testng.Assert._
 
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
 import org.reactivestreams._
-import com.typesafe.scalalogging.LazyLogging
 
 class FailedSubscription(sub: Subscriber[_]) extends Subscription {
   def cancel(): Unit = {}
@@ -23,11 +22,11 @@ class FailedPublisher extends Publisher[Int] {
 
   def subscribe(subscriber: Subscriber[_ >: Int]): Unit = {
     subscriber.onSubscribe(new FailedSubscription(subscriber))
-    subscriber.onError(new Error(""))
+    subscriber.onError(new Error("BOOM"))
   }
 }
 
-class StreamUnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike with LazyLogging {
+class StreamUnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "publisher-spec")
 
@@ -36,14 +35,9 @@ class StreamUnicastPublisherSpec extends PublisherVerification[Int](new TestEnvi
     val s: Stream[Task, Int] = if(n == java.lang.Long.MAX_VALUE) {
       Stream[Task, Int]((1 until 20): _*).repeat
     } else Stream[Task, Int](1).repeat.scan(1)(_ + _).map {
-      i => if(i > n) None else {
-        logger.trace(s"outputting $i of $n at $timestamp")
-        Some(i)
-      }
+      i => if(i > n) None else Some(i)
     }.unNoneTerminate
-    val pub = s.toUnicastPublisher()
-    logger.debug(s"$pub creating publisher for [$n] elements")
-    pub
+    s.toUnicastPublisher()
   }
 
   def createFailedPublisher(): FailedPublisher = new FailedPublisher()
