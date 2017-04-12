@@ -95,7 +95,7 @@ object SubscriberQueue extends LazyLogging {
     case object Cancelled extends State
 
     /** An error was received from upstream */
-    case class Errored(err: Throwable) extends State
+    case class Errored(err: Throwable) extends Exception(err) with State
 
     AA.refOf[State](Uninitialized).map { qref =>
       new SubscriberQueue[Task, A] {
@@ -154,7 +154,7 @@ object SubscriberQueue extends LazyLogging {
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
             logger.error(s"$this errored with [$t]")
-            r.setPure(Attempt.failure(t))
+            r.setPure(Attempt.failure(Errored(t)))
           case o =>
             logger.error(s"$this errored with [$t]")
             AA.pure(())
@@ -199,7 +199,7 @@ object SubscriberQueue extends LazyLogging {
               AA.pure(sub.request(1)).flatMap( _ => r.get)
             case Errored(err) =>
               logger.error(s"$this dequeueing error [${err}]")
-              AA.pure(Attempt.failure(err))
+              AA.pure(Attempt.failure(Errored(err)))
             case Complete =>
               logger.info(s"$this dequeueing completed")
               AA.pure(Attempt.success(None))
