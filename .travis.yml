@@ -2,15 +2,20 @@ language: scala
 
 # scala versions to test against
 scala:
- - 2.12.1
- - 2.11.8
+  - 2.12.1
+  - 2.11.8
 
 jdk:
- - oraclejdk8
+  - oraclejdk8
 
 
 script:
   - sbt clean compile coverage test coverageReport
 
 after_success:
-- bash <(curl -s https://codecov.io/bash)
+  - bash <(curl -s https://codecov.io/bash)
+
+cache:
+  directories:
+    - $HOME/.ivy2/cache
+    - $HOME/.sbt/boot/scala-$TRAVIS_SCALA_VERSION
