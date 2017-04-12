@@ -15,7 +15,7 @@ import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet,
 import org.{reactivestreams => rs}
 import com.typesafe.scalalogging.LazyLogging
 
-class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new TestEnvironment()) with TestNGSuiteLike {
+class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "subscriber-spec")
   private val counter = new AtomicInteger()
   def createSubscriber(p: SubscriberWhiteboxVerification.WhiteboxSubscriberProbe[Int]): rs.Subscriber[Int] =
