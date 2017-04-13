@@ -9,12 +9,16 @@ import fs2.async.mutable._
 import org.reactivestreams._
 import org.log4s._
 
-final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.State], sub: Subscriber[A], stream: Stream[F, A], publisherName: String)(implicit A: Async[F]) extends Subscription {
+/** Implementation of a [[org.reactivestreams.Subscription]].
+  *
+  * This is used by the [[fs2.interop.reactive.StreamUnicastPublisher]] to send elements from a [[fs2.Stream]] to a downstream reactivestreams system.
+  */
+final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request], sub: Subscriber[A], stream: Stream[F, A], publisherName: String)(implicit A: Async[F]) extends Subscription {
   import StreamSubscription._
 
   private[this] val logger: org.log4s.Logger = getLogger(classOf[StreamSubscription[F, A]])
 
-  (stream through demandPipe(requests.dequeueAvailable, publisherName)).map { a =>
+  (stream through subscriptionPipe(requests.dequeueAvailable, publisherName)).map { a =>
     logger.trace(s"$publisherName-$this delivering element [$a]")
     sub.onNext(a)
   }.run.unsafeRunAsync {
@@ -42,7 +46,7 @@ final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.St
     }
     else if(n > 0) {
       logger.trace(s"$publisherName-$this received request for [$n] elements")
-      requests.enqueue1(FiniteRequests(n, 0)).unsafeRunAsync(_ => ())
+      requests.enqueue1(FiniteRequests(n)).unsafeRunAsync(_ => ())
     }
     else {
       logger.error(s"$publisherName-$this received request for an invalid number of elements [$n]")
@@ -52,29 +56,47 @@ final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.St
 }
 
 object StreamSubscription {
-  sealed trait State
-  case object InfiniteRequests extends State
-  case class FiniteRequests(n: Long, counter: Long) extends State
-  case object Cancelled extends State
+
+  /** Represents an operation by a downstream subscriber */
+  sealed trait Request
+
+  /** The downstream reactivestreams subscriber has requested an infinite number of elements */
+  case object InfiniteRequests extends Request
+
+  /** The downstream subscriber has requested a finite number of elements.
+    *
+    * @param n the number of elements requested
+    */
+  case class FiniteRequests(n: Long) extends Request
+
+  /** The downstream subscriber has cancelled the subscription. */
+  case object Cancelled extends Request
+
+  /** Error for a downstream cancellation.  This distinguishes a cancellation from a normal completion. */
   case object Cancellation extends Throwable
-  case class InvalidNumber(n: Long) extends Throwable with State
+
+  /** The downstream subscriber has requested an invalid number of elements.  This distinguishes a downstream error from an upstream error.
+    *
+    * @param n the number of elements requested.  This is zero or negative.
+    */
+  case class InvalidNumber(n: Long) extends Throwable with Request
 
 
   private[this] val logger: org.log4s.Logger = getLogger
 
   def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A], pub: String)(implicit A: Async[F]): F[StreamSubscription[F, A]] =
-    async.unboundedQueue[F, State].map { requests =>
+    async.unboundedQueue[F, Request].map { requests =>
       new StreamSubscription(requests, sub, stream, pub)
     }
 
-  def demandPipe[F[_], A](state: Stream[F, State], pub: String)(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
+  def subscriptionPipe[F[_], A](state: Stream[F, Request], pub: String)(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
 
-    def go(ah: Handle[F, A], sh: Handle[F, State]): Pull[F, A, A] =
+    def go(ah: Handle[F, A], sh: Handle[F, Request]): Pull[F, A, A] =
       sh.receive1 {
         case (InfiniteRequests, sh) =>
           logger.trace(s"$pub processing infinite requests")
           ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goInfinite(af, sf) }}
-        case (FiniteRequests(n, _), sh) =>
+        case (FiniteRequests(n), sh) =>
           logger.trace(s"$pub processing [$n] requests")
           ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goFinite(af, sf, sh, n) }}
         case (Cancelled, _) =>
@@ -85,8 +107,8 @@ object StreamSubscription {
           Pull.fail(i)
       }
 
-    def goFinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[State], Handle[F, State])]],
-      shh: Handle[F, State],
+    def goFinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[Request], Handle[F, Request])]],
+      shh: Handle[F, Request],
       n: Long): Pull[F, A, A] =
       (ah race sh).pull.flatMap {
         case Left(ah) => ah.flatMap { case (as, ah) =>
@@ -112,7 +134,7 @@ object StreamSubscription {
           }
         }
         case Right(sh) => sh.flatMap { case (s, sh) => s match {
-          case Some(FiniteRequests(m, _)) =>
+          case Some(FiniteRequests(m)) =>
             if(m + n > 0L) {
               logger.trace(s"$pub has received finite number of requests [$m].  Adding to existing requests [$n] to request [${m + n}] elements")
               sh.await1Async.flatMap { sf => goFinite(ah, sf, sh, m + n) }
@@ -136,7 +158,7 @@ object StreamSubscription {
         } }
       }
 
-    def goInfinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[State], Handle[F, State])]]): Pull[F, A, A] =
+    def goInfinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[Request], Handle[F, Request])]]): Pull[F, A, A] =
       (ah race sh).pull flatMap {
         case Left(ah) => ah.flatMap {
           case (as, ah) => Pull.output(as) >> ah.awaitAsync.flatMap(goInfinite(_, sh))
@@ -145,7 +167,7 @@ object StreamSubscription {
           case (Some(InfiniteRequests), sh) =>
             logger.trace(s"$pub continuing to process infinite requests")
             sh.await1Async.flatMap(goInfinite(ah, _))
-          case (Some(FiniteRequests(_, _)), sh) =>
+          case (Some(FiniteRequests(_)), sh) =>
             logger.trace(s"$pub received request for a finite number of elements after an infinite number.  Continuing to process infinite requests")
             sh.await1Async.flatMap(goInfinite(ah, _))
           case (Some(Cancelled), _) =>
