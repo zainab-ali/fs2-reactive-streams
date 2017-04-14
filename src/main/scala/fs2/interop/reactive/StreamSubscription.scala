@@ -9,9 +9,10 @@ import fs2.async.mutable._
 import org.reactivestreams._
 import org.log4s._
 
-/** Implementation of a [[org.reactivestreams.Subscription]].
+/** Implementation of a org.reactivestreams.Subscription.
   *
-  * This is used by the [[fs2.interop.reactive.StreamUnicastPublisher]] to send elements from a [[fs2.Stream]] to a downstream reactivestreams system.
+  * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
+  * This is used by the [[fs2.interop.reactive.StreamUnicastPublisher]] to send elements from a Stream to a downstream reactivestreams system.
   */
 final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request], sub: Subscriber[A], stream: Stream[F, A], publisherName: String)(implicit A: Async[F]) extends Subscription {
   import StreamSubscription._

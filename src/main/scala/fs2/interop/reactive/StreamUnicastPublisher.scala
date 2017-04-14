@@ -9,9 +9,11 @@ import fs2.async.mutable._
 import org.reactivestreams._
 import org.log4s._
 
-/** Implementation of an [[org.reactivestreams.Publisher]].
+/** Implementation of an org.reactivestreams.Publisher.
   *
-  * This is used to publish elements from an [[fs2.Stream]] to a downstream reactivestreams system.
+  * @see https://github.com/reactive-streams/reactive-streams-jvm#1-publisher-code
+  *
+  * This is used to publish elements from an fs2.Stream to a downstream reactivestreams system.
   */
 final class StreamUnicastPublisher[F[_], A](val s: Stream[F, A])(implicit AA: Async[F]) extends Publisher[A] {
 

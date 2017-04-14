@@ -9,9 +9,10 @@ import fs2.async.mutable._
 import org.reactivestreams._
 import org.log4s._
 
-/** Implementation of a [[org.reactivestreams.Subscriber]].
+/** Implementation of a org.reactivestreams.Subscriber.
   *
-  * This is used to obtain a [[fs2.Stream]] from an upstream reactivestreams system.
+  * @see https://github.com/reactive-streams/reactive-streams-jvm#2-subscriber-code
+  * This is used to obtain a Stream from an upstream reactivestreams system.
   */
 final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(implicit A: Async[F]) extends Subscriber[A] {
 
@@ -36,7 +37,7 @@ final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(imp
     sub.onError(t).unsafeRunAsync(_ => ())
   }
 
-  /** Obtain a [[fs2.Stream]] */
+  /** Obtain a Stream */
   def stream: Stream[F, A] = sub.stream
 
   private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
@@ -85,20 +86,20 @@ object StreamSubscriber {
 
     /** The first downstream request has been made, but a subscription has not been received from upstream.
       * 
-      *  @req the first downstream request
+      *  @param req the first downstream request
       */
     case class FirstRequest(req: Async.Ref[F, Attempt[Option[A]]]) extends State
 
     /** The subscriber has requested an element from upstream, but not yet received it
       * 
-      * @sub the subscription to upstream
-      * @req the request from downstream
+      * @param sub the subscription to upstream
+      * @param req the request from downstream
       */
     case class PendingElement(sub: Subscription, req: Async.Ref[F, Attempt[Option[A]]]) extends State
 
     /** No downstream requests are open and a subscription has been received.
       * 
-      * @sub the subscription to upstream
+      * @param sub the subscription to upstream
       */
     case class Idle(sub: Subscription) extends State
 
