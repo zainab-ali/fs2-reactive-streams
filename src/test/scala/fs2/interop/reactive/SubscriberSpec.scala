@@ -65,7 +65,7 @@ class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new Tes
   def createSubscriber(): StreamSubscriber[Task, Int] = StreamSubscriber[Task, Int]().unsafeRun()
 
   override def triggerRequest(s: Subscriber[_ >: Int]): Unit = {
-    s.asInstanceOf[StreamSubscriber[Int]].sub.dequeue1.schedule(100 milliseconds).unsafeRunAsync(_ => ())
+    s.asInstanceOf[StreamSubscriber[Task, Int]].sub.dequeue1.schedule(100 milliseconds).unsafeRunAsync(_ => ())
   }
 
   def createElement(i: Int): Int = counter.incrementAndGet()
