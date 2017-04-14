@@ -2,14 +2,11 @@ package fs2
 package interop
 package reactive
 
-import org.scalatest._
 import org.scalatest.testng.TestNGSuiteLike
 import org.reactivestreams.tck.SubscriberWhiteboxVerification
 import org.reactivestreams.tck.SubscriberBlackboxVerification
 import org.reactivestreams.tck.TestEnvironment
 import java.util.concurrent.atomic.AtomicInteger
-import org.testng.annotations._
-import org.testng.Assert._
 
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
 import org.reactivestreams._
@@ -20,7 +17,7 @@ class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new Tes
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "subscriber-spec")
   private val counter = new AtomicInteger()
   def createSubscriber(p: SubscriberWhiteboxVerification.WhiteboxSubscriberProbe[Int]): Subscriber[Int] =
-    StreamSubscriber[Int]().map { s =>
+    StreamSubscriber[Task, Int]().map { s =>
       new WhiteboxSubscriber(s, p)
     }.unsafeRun()
 
@@ -28,7 +25,7 @@ class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new Tes
 }
 
 
-final class WhiteboxSubscriber[A](sub: StreamSubscriber[A],
+final class WhiteboxSubscriber[A](sub: StreamSubscriber[Task, A],
   probe: WhiteboxSubscriberProbe[A]) extends Subscriber[A] {
 
   def onError(t: Throwable): Unit = {
@@ -65,10 +62,10 @@ class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new Tes
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(2, "subscriber-blackbox-spec")
   implicit val SS: Scheduler = Scheduler.fromFixedDaemonPool(2, "subscriber-blackbox-spec-scheduler")
   private val counter = new AtomicInteger()
-  def createSubscriber(): StreamSubscriber[Int] = StreamSubscriber[Int]().unsafeRun()
+  def createSubscriber(): StreamSubscriber[Task, Int] = StreamSubscriber[Task, Int]().unsafeRun()
 
   override def triggerRequest(s: Subscriber[_ >: Int]): Unit = {
-    s.asInstanceOf[StreamSubscriber[Int]].sub.dequeue1.schedule(100 milliseconds).unsafeRunAsync(_ => ())
+    s.asInstanceOf[StreamSubscriber[Task, Int]].sub.dequeue1.schedule(100 milliseconds).unsafeRunAsync(_ => ())
   }
 
   def createElement(i: Int): Int = counter.incrementAndGet()

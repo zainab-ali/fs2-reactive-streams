@@ -30,7 +30,7 @@ class StreamUnicastPublisherSpec extends PublisherVerification[Int](new TestEnvi
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "publisher-spec")
 
-  def createPublisher(n: Long): StreamUnicastPublisher[Int] = {
+  def createPublisher(n: Long): StreamUnicastPublisher[Task, Int] = {
     val timestamp = System.nanoTime()
     val s: Stream[Task, Int] = if(n == java.lang.Long.MAX_VALUE) {
       Stream[Task, Int]((1 until 20): _*).repeat

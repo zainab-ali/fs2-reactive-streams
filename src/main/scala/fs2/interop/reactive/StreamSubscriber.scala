@@ -10,22 +10,24 @@ import org.reactivestreams._
 import org.log4s._
 
 /** An implementation of a org.reactivestreams.Subscriber */
-final class StreamSubscriber[A](val sub: StreamSubscriber.Queue[Task, A]) extends Subscriber[A] {
+final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(implicit A: Async[F]) extends Subscriber[A] {
+
   def onSubscribe(s: Subscription): Unit = {
     nonNull(s)
     sub.onSubscribe(s).unsafeRunAsync(_ => ())
   }
   def onNext(a: A): Unit = {
     nonNull(a)
-    sub.onNext(a).unsafeRun()
+    sub.onNext(a).unsafeRunAsync(_ => ())
   }
-  def onComplete(): Unit = sub.onComplete.unsafeRun()
+  def onComplete(): Unit = sub.onComplete.unsafeRunAsync(_ => ())
+
   def onError(t: Throwable): Unit = {
     nonNull(t)
     sub.onError(t).unsafeRunAsync(_ => ())
   }
 
-  def stream: Stream[Task, A] = sub.stream
+  def stream: Stream[F, A] = sub.stream
 
   private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
 }
@@ -61,9 +63,9 @@ object StreamSubscriber {
   }
 
 
-  def apply[A]()(implicit AA: Async[Task]): Task[StreamSubscriber[A]] = queue[A]().map(new StreamSubscriber(_))
+  def apply[F[_], A]()(implicit AA: Async[F]): F[StreamSubscriber[F, A]] = queue[F, A]().map(new StreamSubscriber(_))
 
-  def queue[A]()(implicit AA: Async[Task]): Task[Queue[Task, A]] = {
+  def queue[F[_], A]()(implicit AA: Async[F]): F[Queue[F, A]] = {
 
     /** Represents the state of the Queue */
     sealed trait State
@@ -75,14 +77,14 @@ object StreamSubscriber {
       * 
       *  @req the first downstream request
       */
-    case class FirstRequest(req: Async.Ref[Task, Attempt[Option[A]]]) extends State
+    case class FirstRequest(req: Async.Ref[F, Attempt[Option[A]]]) extends State
 
     /** The subscriber has requested an element from upstream, but not yet received it
       * 
       * @sub the subscription to upstream
       * @req the request from downstream
       */
-    case class PendingElement(sub: Subscription, req: Async.Ref[Task, Attempt[Option[A]]]) extends State
+    case class PendingElement(sub: Subscription, req: Async.Ref[F, Attempt[Option[A]]]) extends State
 
     /** No downstream requests are open
       * 
@@ -100,9 +102,9 @@ object StreamSubscriber {
     case class Errored(err: Throwable) extends State
 
     AA.refOf[State](Uninitialized).map { qref =>
-      new Queue[Task, A] {
+      new Queue[F, A] {
 
-        def onSubscribe(s: Subscription): Task[Unit] = qref.modify {
+        def onSubscribe(s: Subscription): F[Unit] = qref.modify {
           case FirstRequest(req) =>
             PendingElement(s, req)
           case Uninitialized =>
@@ -120,7 +122,7 @@ object StreamSubscriber {
             AA.pure(s.cancel()) >> AA.fail(new Error(s"received subscription in invalid state [$o]"))
         }}
 
-        def onNext(a: A): Task[Unit] = qref.modify {
+        def onNext(a: A): F[Unit] = qref.modify {
           case PendingElement(s, r) =>
             Idle(s)
           case o =>
@@ -137,7 +139,7 @@ object StreamSubscriber {
             AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
         }}
 
-        def onComplete(): Task[Unit] = qref.modify {
+        def onComplete(): F[Unit] = qref.modify {
           case _ =>
             Complete
         }.flatMap { _.previous match {
@@ -149,7 +151,7 @@ object StreamSubscriber {
             AA.pure(())
         }}
 
-        def onError(t: Throwable): Task[Unit] = qref.modify {
+        def onError(t: Throwable): F[Unit] = qref.modify {
           case _ =>
             Errored(t)
         }.flatMap { _.previous match {
@@ -162,7 +164,7 @@ object StreamSubscriber {
         }}
 
 
-        def onFinalize: Task[Unit] = qref.modify {
+        def onFinalize: F[Unit] = qref.modify {
           case PendingElement(_, _) | Idle(_) =>
             Cancelled
           case o =>
@@ -183,7 +185,7 @@ object StreamSubscriber {
         }}
 
 
-        def dequeue1: Task[Attempt[Option[A]]] = AA.ref[Attempt[Option[A]]].flatMap { r =>
+        def dequeue1: F[Attempt[Option[A]]] = AA.ref[Attempt[Option[A]]].flatMap { r =>
           qref.modify {
             case Uninitialized =>
               FirstRequest(r)

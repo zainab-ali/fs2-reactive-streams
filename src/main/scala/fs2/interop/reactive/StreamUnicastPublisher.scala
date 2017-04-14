@@ -9,18 +9,22 @@ import fs2.async.mutable._
 import org.reactivestreams._
 import org.log4s._
 
-class StreamUnicastPublisher[A](val s: Stream[Task, A])(implicit AA: Async[Task]) extends Publisher[A] {
+class StreamUnicastPublisher[F[_], A](val s: Stream[F, A])(implicit AA: Async[F]) extends Publisher[A] {
 
-  private[this] val logger = getLogger
+  private[this] val logger = getLogger(classOf[StreamUnicastPublisher[F, A]])
 
   def subscribe(subscriber: Subscriber[_ >: A]): Unit = {
+    nonNull(subscriber)
     logger.debug(s"$this publisher has received subscriber")
-    val subscription = StreamSubscription(subscriber, s, this.toString).unsafeRun()
-    subscriber.onSubscribe(subscription)
+    StreamSubscription(subscriber, s, this.toString).map { sub =>
+      subscriber.onSubscribe(sub)
+    }.unsafeRunAsync(_ => ())
   }
+
+  private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
 }
 
 object StreamUnicastPublisher {
 
-  def apply[A](s: Stream[Task, A])(implicit A: Async[Task]): StreamUnicastPublisher[A] = new StreamUnicastPublisher(s)
+  def apply[F[_], A](s: Stream[F, A])(implicit A: Async[F]): StreamUnicastPublisher[F, A] = new StreamUnicastPublisher(s)
 }
