@@ -9,24 +9,36 @@ import fs2.async.mutable._
 import org.reactivestreams._
 import org.log4s._
 
-/** An implementation of a org.reactivestreams.Subscriber */
+/** Implementation of a org.reactivestreams.Subscriber.
+  * 
+  * This is used to obtain a Stream from an upstream reactivestreams system.
+  * 
+  * @see https://github.com/reactive-streams/reactive-streams-jvm#2-subscriber-code
+  */
 final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(implicit A: Async[F]) extends Subscriber[A] {
 
+  /** Called by an upstream reactivestreams system */
   def onSubscribe(s: Subscription): Unit = {
     nonNull(s)
     sub.onSubscribe(s).unsafeRunAsync(_ => ())
   }
+
+  /** Called by an upstream reactivestreams system */
   def onNext(a: A): Unit = {
     nonNull(a)
     sub.onNext(a).unsafeRunAsync(_ => ())
   }
+
+  /** Called by an upstream reactivestreams system */
   def onComplete(): Unit = sub.onComplete.unsafeRunAsync(_ => ())
 
+  /** Called by an upstream reactivestreams system */
   def onError(t: Throwable): Unit = {
     nonNull(t)
     sub.onError(t).unsafeRunAsync(_ => ())
   }
 
+  /** Obtain a Stream */
   def stream: Stream[F, A] = sub.stream
 
   private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
@@ -34,28 +46,30 @@ final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(imp
 
 object StreamSubscriber {
 
+  def apply[F[_], A]()(implicit AA: Async[F]): F[StreamSubscriber[F, A]] = queue[F, A]().map(new StreamSubscriber(_))
+
   private[this] val logger = getLogger
 
-  /** Dequeues from an upstream publisher */
+  /** A single element queue representing the subscriber */
   trait Queue[F[_], A] {
 
     /** receives a subscription from upstream */
-    def onSubscribe(s: Subscription): F[Unit]
+    private[reactive] def onSubscribe(s: Subscription): F[Unit]
 
     /** receives next record from upstream */
-    def onNext(a: A): F[Unit]
+    private[reactive] def onNext(a: A): F[Unit]
 
     /** receives error from upstream */
-    def onError(t: Throwable): F[Unit]
+    private[reactive] def onError(t: Throwable): F[Unit]
     
     /** called when upstream has finished sending records */
-    def onComplete: F[Unit]
+    private[reactive] def onComplete: F[Unit]
 
     /** called when downstream has finished consuming records */
-    def onFinalize: F[Unit]
+    private[reactive] def onFinalize: F[Unit]
 
     /** producer for downstream */
-    def dequeue1: F[Attempt[Option[A]]]
+    private[reactive] def dequeue1: F[Attempt[Option[A]]]
 
     /** downstream stream */
     def stream()(implicit A: Applicative[F]): Stream[F, A] =
@@ -63,39 +77,37 @@ object StreamSubscriber {
   }
 
 
-  def apply[F[_], A]()(implicit AA: Async[F]): F[StreamSubscriber[F, A]] = queue[F, A]().map(new StreamSubscriber(_))
-
   def queue[F[_], A]()(implicit AA: Async[F]): F[Queue[F, A]] = {
 
     /** Represents the state of the Queue */
     sealed trait State
 
-    /** No downstream requests have been made (the downstream stream has not been pulled on) */
+    /** No requests have been made (the downstream [[fs2.Stream]] has not been pulled on) */
     case object Uninitialized extends State
 
-    /** The first downstream request has been made, but there is no subscription yet
+    /** The first downstream request has been made, but a subscription has not been received from upstream.
       * 
-      *  @req the first downstream request
+      *  @param req the first downstream request
       */
     case class FirstRequest(req: Async.Ref[F, Attempt[Option[A]]]) extends State
 
     /** The subscriber has requested an element from upstream, but not yet received it
       * 
-      * @sub the subscription to upstream
-      * @req the request from downstream
+      * @param sub the subscription to upstream
+      * @param req the request from downstream
       */
     case class PendingElement(sub: Subscription, req: Async.Ref[F, Attempt[Option[A]]]) extends State
 
-    /** No downstream requests are open
+    /** No downstream requests are open and a subscription has been received.
       * 
-      * @sub the subscription to upstream
+      * @param sub the subscription to upstream
       */
     case class Idle(sub: Subscription) extends State
 
     /** The upstream publisher has completed successfully */
     case object Complete extends State
 
-    /** Downstream finished before upstream completed.  The subscriber cancelled the subscription. */
+    /** Downstream finished before upstream completed.  The subscription has been cancelled. */
     case object Cancelled extends State
 
     /** An error was received from upstream */
