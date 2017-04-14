@@ -4,15 +4,6 @@ package reactive
 
 import org.scalatest._
 import org.scalatest.prop._
-import org.scalatest.testng.TestNGSuiteLike
-import org.reactivestreams.tck.PublisherVerification
-import org.reactivestreams.tck.TestEnvironment
-import java.util.concurrent.atomic.AtomicInteger
-import org.testng.annotations._
-import org.testng.Assert._
-
-import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
-import org.reactivestreams._
 
 class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChecks {
 
