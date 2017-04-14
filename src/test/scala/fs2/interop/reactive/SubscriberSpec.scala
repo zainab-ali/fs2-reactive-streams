@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
 import org.reactivestreams._
 
+import scala.concurrent.duration._
+
 class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(1, "subscriber-spec")
   private val counter = new AtomicInteger()
@@ -58,11 +60,12 @@ final class WhiteboxSubscriber[A](sub: StreamSubscriber[Task, A],
 class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
 
   implicit val S: Strategy = Strategy.fromFixedDaemonPool(2, "subscriber-blackbox-spec")
+  implicit val SS: Scheduler = Scheduler.fromFixedDaemonPool(2, "subscriber-blackbox-spec-scheduler")
   private val counter = new AtomicInteger()
   def createSubscriber(): StreamSubscriber[Task, Int] = StreamSubscriber[Task, Int]().unsafeRun()
 
   override def triggerRequest(s: Subscriber[_ >: Int]): Unit = {
-    s.asInstanceOf[StreamSubscriber[Task, Int]].sub.dequeue1.unsafeRunAsync(_ => ())
+    s.asInstanceOf[StreamSubscriber[Task, Int]].sub.dequeue1.schedule(100 milliseconds).unsafeRunAsync(_ => ())
   }
 
   def createElement(i: Int): Int = counter.incrementAndGet()
