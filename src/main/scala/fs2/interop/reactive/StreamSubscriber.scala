@@ -10,9 +10,10 @@ import org.reactivestreams._
 import org.log4s._
 
 /** Implementation of a org.reactivestreams.Subscriber.
-  *
-  * @see https://github.com/reactive-streams/reactive-streams-jvm#2-subscriber-code
+  * 
   * This is used to obtain a Stream from an upstream reactivestreams system.
+  * 
+  * @see https://github.com/reactive-streams/reactive-streams-jvm#2-subscriber-code
   */
 final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(implicit A: Async[F]) extends Subscriber[A] {
 

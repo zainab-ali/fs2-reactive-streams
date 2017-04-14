@@ -11,8 +11,9 @@ import org.log4s._
 
 /** Implementation of a org.reactivestreams.Subscription.
   *
-  * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   * This is used by the [[fs2.interop.reactive.StreamUnicastPublisher]] to send elements from a Stream to a downstream reactivestreams system.
+  * 
+  * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */
 final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request], sub: Subscriber[A], stream: Stream[F, A], publisherName: String)(implicit A: Async[F]) extends Subscription {
   import StreamSubscription._
