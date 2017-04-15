@@ -49,15 +49,21 @@ lazy val exampleSettings = Seq(
   )
 )
 
+lazy val docSettings = Seq(
+  libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-stream" % "2.5.0"
+  )
+) ++ tutSettings
+
 lazy val core = (project in file("core"))
   .settings(moduleName := "core")
   .settings(commonSettings)
 
-lazy val examples = (project in file("examples"))
-  .settings(moduleName := "examples")
+lazy val docs = (project in file("docs"))
+  .settings(moduleName := "docs")
   .dependsOn(core)
   .settings(commonSettings)
-  .settings(exampleSettings)
+  .settings(docSettings)
 
 lazy val root = (project in file("."))
-  .aggregate(core, examples)
+  .aggregate(core, docs)
