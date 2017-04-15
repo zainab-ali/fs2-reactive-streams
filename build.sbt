@@ -42,5 +42,22 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 ) ++ coverageSettings ++ buildSettings
 
-lazy val root = (project in file("."))
+
+lazy val exampleSettings = Seq(
+  libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-stream" % "2.5.0"
+  )
+)
+
+lazy val core = (project in file("core"))
+  .settings(moduleName := "core")
   .settings(commonSettings)
+
+lazy val examples = (project in file("examples"))
+  .settings(moduleName := "examples")
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(exampleSettings)
+
+lazy val root = (project in file("."))
+  .aggregate(core, examples)
