@@ -3,3 +3,109 @@ A reactive streams implementation for fs2
 
 [![Build Status](https://travis-ci.org/to-ithaca/fs2-reactive.svg?branch=master)](http://travis-ci.org/to-ithaca/fs2-reactive)
 [![codecov](https://codecov.io/gh/to-ithaca/fs2-reactive/branch/master/graph/badge.svg)](https://codecov.io/gh/to-ithaca/fs2-reactive)
+
+## To use
+
+Add the following to your `build.sbt`:
+
+## TL;DR
+
+
+```scala
+import fs2._
+// import fs2._
+
+import fs2.interop.reactive._
+// import fs2.interop.reactive._
+
+implicit val strategy: Strategy = Strategy.fromFixedDaemonPool(4, "worker")
+// strategy: fs2.Strategy = Strategy
+
+val upstream = Stream[Task, Int](1, 2, 3)
+// upstream: fs2.Stream[fs2.Task,Int] = Segment(Emit(Chunk(1, 2, 3)))
+
+val publisher = upstream.toUnicastPublisher
+// publisher: fs2.interop.reactive.StreamUnicastPublisher[fs2.Task,Int] = fs2.interop.reactive.StreamUnicastPublisher@3bffe6db
+
+val downstream = publisher.toStream[Task]
+// downstream: fs2.Stream[fs2.Task,Int] = attemptEval(Task).flatMap(<function1>).flatMap(<function1>)
+
+downstream.runLog.unsafeRun()
+// res0: Vector[Int] = Vector(1, 2, 3)
+```
+
+## Why?
+
+The reactive streams protocol is complicated, mutable and unsafe - it is not something that is desired for use over fs2.
+But there are times when we need use fs2 in conjunction with a different streaming library, and this is where reactive streams shines.
+
+Any reactive streams system can interop with any other reactive streams system by exposing an `org.reactivestreams.Publisher` or an `org.reactivestreams.Subscriber`.
+
+This library provides instances of reactivestreams compliant publishers and subscribers to ease interop with other streaming libraries.
+
+## Usage
+
+
+To convert a `Stream` into a downstream unicast `org.reactivestreams.Publisher`:
+
+```scala
+val stream = Stream[Task, Int](1, 2, 3)
+stream.toUnicastPublisher
+```
+
+To convert an upstream `org.reactivestreams.Publisher` into a `Stream`:
+
+```scala
+val publisher: org.reactivestreams.Publisher[Int] = Stream[Task, Int](1, 2, 3).toUnicastPublisher
+publisher.toStream[Task]
+```
+
+A unicast publisher must have a single subscriber only.
+
+## Example: Akka streams
+
+Import the Akka streams dsl:
+
+```scala
+import akka._
+import akka.stream._
+import akka.stream.scaladsl._
+import akka.actor.ActorSystem
+import scala.concurrent.ExecutionContext.Implicits.global
+
+implicit val system = ActorSystem("akka-streams-example")
+implicit val materializer = ActorMaterializer()
+```
+
+To convert from an `Source` to a `Stream`:
+
+```scala
+val source = Source(1 to 5)
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(1413817396)))
+
+val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
+// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(1413817396)])
+
+val stream = publisher.toStream[Task]
+// stream: fs2.Stream[fs2.Task,Int] = attemptEval(Task).flatMap(<function1>).flatMap(<function1>)
+
+stream.runLog.unsafeRun()
+// res4: Vector[Int] = Vector(1, 2, 3, 4, 5)
+```
+
+To convert from a `Stream` to a `Source`:
+
+```scala
+val stream = Stream.emits[Task, Int]((1 to 5).toSeq)
+// stream: fs2.Stream[fs2.Task,Int] = Segment(Emit(Chunk(1, 2, 3, 4, 5)))
+
+val source = Source.fromPublisher(stream.toUnicastPublisher)
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(232329858)))
+
+Task.fromFuture(source.runWith(Sink.seq[Int])).unsafeRun()
+// res5: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)
+```
+
+```scala
+system.terminate()
+```

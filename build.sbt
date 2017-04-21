@@ -42,12 +42,12 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 ) ++ coverageSettings ++ buildSettings
 
-lazy val docSettings = Seq(
+lazy val docSettings = tutSettings ++ Seq(
   libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-stream" % "2.5.0"
   ),
-  tutTargetDirectory := baseDirectory.value
-) ++ tutSettings
+  tutTargetDirectory := (baseDirectory in ThisBuild).value
+)
 
 lazy val core = (project in file("core"))
   .settings(moduleName := "core")
