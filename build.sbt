@@ -36,5 +36,22 @@ lazy val commonSettings = Seq(
   )
 ) ++ coverageSettings ++ buildSettings
 
-lazy val root = (project in file("."))
+lazy val docSettings = tutSettings ++ Seq(
+  libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-stream" % "2.5.0"
+  ),
+  tutTargetDirectory := (baseDirectory in ThisBuild).value
+)
+
+lazy val core = (project in file("core"))
+  .settings(moduleName := "core")
   .settings(commonSettings)
+
+lazy val docs = (project in file("docs"))
+  .settings(moduleName := "docs")
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(docSettings)
+
+lazy val root = (project in file("."))
+  .aggregate(core, docs)
