@@ -7,7 +7,6 @@ import fs2.util.syntax._
 import fs2.async.mutable._
 
 import org.reactivestreams._
-import org.log4s._
 
 /** Implementation of a org.reactivestreams.Subscriber.
   * 
@@ -47,8 +46,6 @@ final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(imp
 object StreamSubscriber {
 
   def apply[F[_], A]()(implicit AA: Async[F]): F[StreamSubscriber[F, A]] = queue[F, A]().map(new StreamSubscriber(_))
-
-  private[this] val logger = getLogger
 
   /** A single element queue representing the subscriber */
   trait Queue[F[_], A] {
@@ -124,13 +121,10 @@ object StreamSubscriber {
           case o => o
         }.flatMap { _.previous match {
           case _ : FirstRequest =>
-            logger.info(s"$this received subscription after request")
             AA.pure(s.request(1))
           case Uninitialized =>
-            logger.info(s"$this received subscription when uninitialized")
             AA.pure(())
           case o =>
-            logger.info(s"$this received subscription in invalid state [$o]")
             AA.pure(s.cancel()) >> AA.fail(new Error(s"received subscription in invalid state [$o]"))
         }}
 
@@ -141,13 +135,10 @@ object StreamSubscriber {
             o
         }.flatMap { c => c.previous match {
           case PendingElement(s, r) =>
-            logger.trace(s"$this delivering next element [$a]")
             r.setPure(Attempt.success(Some(a)))
           case Cancelled =>
-            logger.trace(s"$this received element [$a] after cancellation")
             AA.pure(())
           case o =>
-            logger.error(s"$this received record [$a] in invalid state [$o]")
             AA.fail(new Error(s"received record [$a] in invalid state [$o]"))
         }}
 
@@ -156,10 +147,8 @@ object StreamSubscriber {
             Complete
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
-            logger.info(s"$this completed while waiting for elements")
             r.setPure(Attempt.success(None))
           case o =>
-            logger.info(s"$this completed in state [$o]")
             AA.pure(())
         }}
 
@@ -168,10 +157,8 @@ object StreamSubscriber {
             Errored(t)
         }.flatMap { _.previous match {
           case PendingElement(sub, r) =>
-            logger.warn(s"$this received error from upstream [$t]")
             r.setPure(Attempt.failure(t))
           case o =>
-            logger.warn(s"$this received error from upstream [$t]")
             AA.pure(())
         }}
 
@@ -182,7 +169,6 @@ object StreamSubscriber {
           case o =>
             o
         }.flatMap { o =>
-          logger.info(s"$this cancelled from downstream in state [${o.previous}]")
           o.previous match {
           case PendingElement(sub, r) =>
             AA.pure {
@@ -206,19 +192,14 @@ object StreamSubscriber {
             case o => o
           }.flatMap(c => c.previous match {
             case Uninitialized =>
-              logger.info(s"$this received request when uninitialised")
               r.get
             case Idle(sub) =>
-              logger.info(s"$this received request after subscription [$sub]")
               AA.pure(sub.request(1)).flatMap( _ => r.get)
             case Errored(err) =>
-              logger.warn(s"$this received error from upstream [$err]")
               AA.pure(Attempt.failure(err))
             case Complete =>
-              logger.info(s"$this upstream completed")
               AA.pure(Attempt.success(None))
             case FirstRequest(_) | PendingElement(_, _) | Cancelled =>
-              logger.error(s"$this received request in invalid state [${c.previous}]")
               AA.pure(Attempt.failure(new Error(s"received request in invalid state [${c.previous}]")))
           })
         }

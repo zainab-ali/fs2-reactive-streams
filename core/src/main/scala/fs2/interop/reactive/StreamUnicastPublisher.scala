@@ -7,7 +7,6 @@ import fs2.util.syntax._
 import fs2.async.mutable._
 
 import org.reactivestreams._
-import org.log4s._
 
 /** Implementation of an org.reactivestreams.Publisher.
   *
@@ -18,12 +17,9 @@ import org.log4s._
   */
 final class StreamUnicastPublisher[F[_], A](val s: Stream[F, A])(implicit AA: Async[F]) extends Publisher[A] {
 
-  private[this] val logger = getLogger(classOf[StreamUnicastPublisher[F, A]])
-
   def subscribe(subscriber: Subscriber[_ >: A]): Unit = {
     nonNull(subscriber)
-    logger.debug(s"$this publisher has received subscriber")
-    StreamSubscription(subscriber, s, this.toString).map { sub =>
+    StreamSubscription(subscriber, s).map { sub =>
       subscriber.onSubscribe(sub)
     }.unsafeRunAsync(_ => ())
   }
