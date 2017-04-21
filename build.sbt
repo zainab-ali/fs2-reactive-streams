@@ -1,6 +1,7 @@
 lazy val buildSettings = Seq(
   organization := "com.ithaca",
-  scalaVersion := "2.12.1",
+  crossScalaVersions := List("2.12.1", "2.11.8"),
+  scalaVersion := crossScalaVersions.value.head,
   name := "fs2-reactive",
   version := "0.1.0-SNAPSHOT"
 )
