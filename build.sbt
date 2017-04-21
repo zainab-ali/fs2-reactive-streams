@@ -45,7 +45,8 @@ lazy val commonSettings = Seq(
 lazy val docSettings = Seq(
   libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-stream" % "2.5.0"
-  )
+  ),
+  tutTargetDirectory := baseDirectory.value
 ) ++ tutSettings
 
 lazy val core = (project in file("core"))
