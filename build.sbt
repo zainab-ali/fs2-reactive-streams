@@ -42,13 +42,6 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 ) ++ coverageSettings ++ buildSettings
 
-
-lazy val exampleSettings = Seq(
-  libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-stream" % "2.5.0"
-  )
-)
-
 lazy val docSettings = Seq(
   libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-stream" % "2.5.0"
