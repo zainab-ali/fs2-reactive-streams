@@ -1,5 +1,5 @@
 # fs2-reactive
-A reactive streams implementation for fs2
+A reactive streams implementation for [fs2](https://github.com/functional-streams-for-scala/fs2)
 
 [![Build Status](https://travis-ci.org/to-ithaca/fs2-reactive.svg?branch=master)](http://travis-ci.org/to-ithaca/fs2-reactive)
 [![codecov](https://codecov.io/gh/to-ithaca/fs2-reactive/branch/master/graph/badge.svg)](https://codecov.io/gh/to-ithaca/fs2-reactive)
@@ -83,6 +83,14 @@ val source = Source.fromPublisher(stream.toUnicastPublisher)
 Task.fromFuture(source.runWith(Sink.seq[Int])).unsafeRun()
 ```
 
-```tut:silent
+```tut:invisible
 system.terminate()
 ```
+
+## Licence
+
+fs2-reactive is licensed under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
+
+## Credits
+
+Many thanks go to [Ross Baker](https://github.com/rossabaker) who took the first step in making a reactive streams implementation in [http4s](https://github.com/http4s/http4s).  Without this, fs2-reactive would have been much harder to write.

@@ -1,5 +1,5 @@
 # fs2-reactive
-A reactive streams implementation for fs2
+A reactive streams implementation for [fs2](https://github.com/functional-streams-for-scala/fs2)
 
 [![Build Status](https://travis-ci.org/to-ithaca/fs2-reactive.svg?branch=master)](http://travis-ci.org/to-ithaca/fs2-reactive)
 [![codecov](https://codecov.io/gh/to-ithaca/fs2-reactive/branch/master/graph/badge.svg)](https://codecov.io/gh/to-ithaca/fs2-reactive)
@@ -25,7 +25,7 @@ val upstream = Stream[Task, Int](1, 2, 3)
 // upstream: fs2.Stream[fs2.Task,Int] = Segment(Emit(Chunk(1, 2, 3)))
 
 val publisher = upstream.toUnicastPublisher
-// publisher: fs2.interop.reactive.StreamUnicastPublisher[fs2.Task,Int] = fs2.interop.reactive.StreamUnicastPublisher@3bffe6db
+// publisher: fs2.interop.reactive.StreamUnicastPublisher[fs2.Task,Int] = fs2.interop.reactive.StreamUnicastPublisher@182ae036
 
 val downstream = publisher.toStream[Task]
 // downstream: fs2.Stream[fs2.Task,Int] = attemptEval(Task).flatMap(<function1>).flatMap(<function1>)
@@ -81,10 +81,10 @@ To convert from an `Source` to a `Stream`:
 
 ```scala
 val source = Source(1 to 5)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(1413817396)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(599825347)))
 
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
-// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(1413817396)])
+// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(599825347)])
 
 val stream = publisher.toStream[Task]
 // stream: fs2.Stream[fs2.Task,Int] = attemptEval(Task).flatMap(<function1>).flatMap(<function1>)
@@ -100,12 +100,19 @@ val stream = Stream.emits[Task, Int]((1 to 5).toSeq)
 // stream: fs2.Stream[fs2.Task,Int] = Segment(Emit(Chunk(1, 2, 3, 4, 5)))
 
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(232329858)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(338344531)))
 
 Task.fromFuture(source.runWith(Sink.seq[Int])).unsafeRun()
 // res5: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)
 ```
 
-```scala
-system.terminate()
-```
+
+
+
+## Licence
+
+fs2-reactive is licensed under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
+
+## Credits
+
+Many thanks go to [Ross Baker](https://github.com/rossabaker) who took the first step in making a reactive streams implementation in [http4s](https://github.com/http4s/http4s).  Without this, fs2-reactive would have been much harder to write.
