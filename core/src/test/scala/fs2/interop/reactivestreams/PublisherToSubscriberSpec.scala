@@ -1,6 +1,6 @@
 package fs2
 package interop
-package reactive
+package reactivestreams
 
 import org.scalatest._
 import org.scalatest.prop._
