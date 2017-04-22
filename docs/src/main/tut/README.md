@@ -1,8 +1,8 @@
-# fs2-reactive
+# fs2-reactive-streams
 A reactive streams implementation for [fs2](https://github.com/functional-streams-for-scala/fs2)
 
-[![Build Status](https://travis-ci.org/to-ithaca/fs2-reactive.svg?branch=master)](http://travis-ci.org/to-ithaca/fs2-reactive)
-[![codecov](https://codecov.io/gh/to-ithaca/fs2-reactive/branch/master/graph/badge.svg)](https://codecov.io/gh/to-ithaca/fs2-reactive)
+[![Build Status](https://travis-ci.org/to-ithaca/fs2-reactive-streams.svg?branch=master)](http://travis-ci.org/to-ithaca/fs2-reactive-streams)
+[![codecov](https://codecov.io/gh/to-ithaca/fs2-reactive-streams/branch/master/graph/badge.svg)](https://codecov.io/gh/to-ithaca/fs2-reactive-streams)
 
 ## To use
 
@@ -13,7 +13,7 @@ Add the following to your `build.sbt`:
 
 ```tut:book
 import fs2._
-import fs2.interop.reactive._
+import fs2.interop.reactivestreams._
 
 implicit val strategy: Strategy = Strategy.fromFixedDaemonPool(4, "worker")
 
@@ -25,7 +25,7 @@ downstream.runLog.unsafeRun()
 
 ## Why?
 
-The reactive streams protocol is complicated, mutable and unsafe - it is not something that is desired for use over fs2.
+The [reactive streams initiative](http://www.reactive-streams.org/) is complicated, mutable and unsafe - it is not something that is desired for use over fs2.
 But there are times when we need use fs2 in conjunction with a different streaming library, and this is where reactive streams shines.
 
 Any reactive streams system can interop with any other reactive streams system by exposing an `org.reactivestreams.Publisher` or an `org.reactivestreams.Subscriber`.
@@ -89,8 +89,8 @@ system.terminate()
 
 ## Licence
 
-fs2-reactive is licensed under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
+fs2-reactive-streams is licensed under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
 ## Credits
 
-Many thanks go to [Ross Baker](https://github.com/rossabaker) who took the first step in making a reactive streams implementation in [http4s](https://github.com/http4s/http4s).  Without this, fs2-reactive would have been much harder to write.
+Many thanks go to [Ross Baker](https://github.com/rossabaker) who took the first step in making a reactive streams implementation in [http4s](https://github.com/http4s/http4s).  Without this, fs2-reactive-streams would have been much harder to write.

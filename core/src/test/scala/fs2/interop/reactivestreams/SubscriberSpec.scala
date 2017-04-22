@@ -1,6 +1,6 @@
 package fs2
 package interop
-package reactive
+package reactivestreams
 
 import org.scalatest.testng.TestNGSuiteLike
 import org.reactivestreams.tck.SubscriberWhiteboxVerification

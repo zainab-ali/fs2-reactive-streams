@@ -1,6 +1,6 @@
 package fs2
 package interop
-package reactive
+package reactivestreams
 
 import fs2.util._
 import fs2.util.syntax._

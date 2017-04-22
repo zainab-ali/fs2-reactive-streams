@@ -1,6 +1,6 @@
 package fs2
 package interop
-package reactive
+package reactivestreams
 
 import fs2.util._
 import fs2.util.syntax._
@@ -51,22 +51,22 @@ object StreamSubscriber {
   trait Queue[F[_], A] {
 
     /** receives a subscription from upstream */
-    private[reactive] def onSubscribe(s: Subscription): F[Unit]
+    private[reactivestreams] def onSubscribe(s: Subscription): F[Unit]
 
     /** receives next record from upstream */
-    private[reactive] def onNext(a: A): F[Unit]
+    private[reactivestreams] def onNext(a: A): F[Unit]
 
     /** receives error from upstream */
-    private[reactive] def onError(t: Throwable): F[Unit]
+    private[reactivestreams] def onError(t: Throwable): F[Unit]
     
     /** called when upstream has finished sending records */
-    private[reactive] def onComplete: F[Unit]
+    private[reactivestreams] def onComplete: F[Unit]
 
     /** called when downstream has finished consuming records */
-    private[reactive] def onFinalize: F[Unit]
+    private[reactivestreams] def onFinalize: F[Unit]
 
     /** producer for downstream */
-    private[reactive] def dequeue1: F[Attempt[Option[A]]]
+    private[reactivestreams] def dequeue1: F[Attempt[Option[A]]]
 
     /** downstream stream */
     def stream()(implicit A: Applicative[F]): Stream[F, A] =

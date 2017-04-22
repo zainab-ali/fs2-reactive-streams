@@ -6,7 +6,7 @@ import fs2.util.syntax._
 import fs2.async.mutable._
 import org.reactivestreams._
 
-package object reactive {
+package object reactivestreams {
 
   /** Creates a lazy stream from an org.reactivestreams.Publisher.
     *
