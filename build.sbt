@@ -43,6 +43,7 @@ lazy val docSettings = tutSettings ++ Seq(
   libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-stream" % "2.5.0"
   ),
+  publish := {},
   tutTargetDirectory := (baseDirectory in ThisBuild).value
 )
 
@@ -76,7 +77,7 @@ val publishSettings = Seq(
 )
 
 lazy val core = (project in file("core"))
-  .settings(moduleName := "core")
+  .settings(moduleName := "fs2-reactive-streams")
   .settings(commonSettings)
   .settings(publishSettings)
 
@@ -88,3 +89,4 @@ lazy val docs = (project in file("docs"))
 
 lazy val root = (project in file("."))
   .aggregate(core, docs)
+  .settings(publish := {})
