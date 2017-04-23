@@ -25,3 +25,7 @@ project/plugins/project/
 
 # Emacs specific
 \#*#
+
+# Secrets
+gpg.sbt
+*.gpg
