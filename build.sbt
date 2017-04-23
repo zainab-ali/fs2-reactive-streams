@@ -27,6 +27,13 @@ lazy val coverageSettings = Seq(
   coverageFailOnMinimum := false
 )
 
+lazy val noPublishSettings = Seq(
+  publish := (),
+  publishLocal := (),
+  publishArtifact := false
+)
+
+
 lazy val commonSettings = Seq(
     resolvers := commonResolvers,
   scalacOptions ++= commonScalacOptions,
@@ -43,7 +50,6 @@ lazy val docSettings = tutSettings ++ Seq(
   libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-stream" % "2.5.0"
   ),
-  publish := {},
   tutTargetDirectory := (baseDirectory in ThisBuild).value
 )
 
@@ -86,7 +92,8 @@ lazy val docs = (project in file("docs"))
   .dependsOn(core)
   .settings(commonSettings)
   .settings(docSettings)
+  .settings(noPublishSettings)
 
 lazy val root = (project in file("."))
   .aggregate(core, docs)
-  .settings(publish := {})
+  .settings(noPublishSettings)
