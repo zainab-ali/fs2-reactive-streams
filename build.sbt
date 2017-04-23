@@ -1,9 +1,11 @@
+import xerial.sbt.Sonatype.autoImport.sonatypeProfileName
+import ReleaseTransformations._
+
 lazy val buildSettings = Seq(
-  organization := "com.ithaca",
+  organization := "com.github.zainab-ali",
   crossScalaVersions := List("2.12.1", "2.11.8"),
   scalaVersion := crossScalaVersions.value.head,
-  name := "fs2-reactive-streams",
-  version := "0.1.0-SNAPSHOT"
+  name := "fs2-reactive-streams"
 )
 
 lazy val commonScalacOptions = Seq(
@@ -44,9 +46,39 @@ lazy val docSettings = tutSettings ++ Seq(
   tutTargetDirectory := (baseDirectory in ThisBuild).value
 )
 
+
+val publishSettings = Seq(
+  releaseCrossBuild := true,
+  releaseIgnoreUntrackedFiles := true,
+  sonatypeProfileName := "com.github.zainab-ali",
+  developers += Developer("zainab-ali", "Zainab Ali", "", url("http://github.com/zainab-ali")),
+  licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.html")),
+  homepage := Some(url("https://github.com/zainab-ali/fs2-reactive-streams")),
+  scmInfo := Some(ScmInfo(url("https://github.com/zainab-ali/fs2-reactive-streams"),
+    "git@github.com:zainab-ali/fs2-reactive-streams")),
+  credentials ++= (for {
+    username <- Option(System.getenv().get("SONATYPE_USERNAME"))
+    password <- Option(System.getenv().get("SONATYPE_PASSWORD"))
+  } yield Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", username, password)).toSeq,
+  releaseProcess := Seq[ReleaseStep](
+    checkSnapshotDependencies,
+    inquireVersions,
+    runClean,
+    runTest,
+    setReleaseVersion,
+    commitReleaseVersion,
+    tagRelease,
+    ReleaseStep(action = Command.process("publishSigned", _), enableCrossBuild = true),
+    setNextVersion,
+    commitNextVersion,
+    ReleaseStep(action = Command.process("sonatypeReleaseAll", _), enableCrossBuild = true),
+    pushChanges)
+)
+
 lazy val core = (project in file("core"))
   .settings(moduleName := "core")
   .settings(commonSettings)
+  .settings(publishSettings)
 
 lazy val docs = (project in file("docs"))
   .settings(moduleName := "docs")
