@@ -9,7 +9,7 @@ A reactive streams implementation for [fs2](https://github.com/functional-stream
 Add the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" %% "0.1.0"
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.1.0"
 ```
 
 ## TL;DR
