@@ -29,3 +29,4 @@ project/plugins/project/
 # Secrets
 gpg.sbt
 *.gpg
+secrets.tar
