@@ -2,11 +2,12 @@ package fs2
 package interop
 package reactivestreams
 
-import fs2.util._
-import fs2.util.syntax._
+import cats.effect._
+import cats.implicits._
 import fs2.async.mutable._
-
 import org.reactivestreams._
+
+import scala.concurrent.ExecutionContext
 
 /** Implementation of a org.reactivestreams.Subscription.
   *
@@ -14,33 +15,36 @@ import org.reactivestreams._
   * 
   * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */
-final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request], sub: Subscriber[A], stream: Stream[F, A])(implicit A: Async[F]) extends Subscription {
+final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request], sub: Subscriber[A], stream: Stream[F, A])(implicit A: Effect[F], ec: ExecutionContext) extends Subscription {
   import StreamSubscription._
 
-  (stream through subscriptionPipe(requests.dequeueAvailable)).map { a =>
+  val fa = (stream through subscriptionPipe(requests.dequeueAvailable)).map { a =>
     sub.onNext(a)
-  }.run.unsafeRunAsync {
-    case Left(Cancellation) =>
+  }.run
+
+  async.unsafeRunAsync(fa) {
+    case Left(Cancellation) => IO.unit
     case Left(InvalidNumber(n)) =>
-      sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]"))
+      IO.pure(sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]")))
     case Left(err) =>
-      sub.onError(err)
+      IO.pure(sub.onError(err))
     case Right(_) =>
-      sub.onComplete()
+      IO.pure(sub.onComplete())
   }
 
   def cancel(): Unit = {
-    requests.enqueue1(Cancelled).unsafeRunAsync(_ => ())
+    async.unsafeRunAsync(requests.enqueue1(Cancelled))(_ => IO.unit)
   }
+
   def request(n: Long): Unit = {
     if(n == java.lang.Long.MAX_VALUE) {
-      requests.enqueue1(InfiniteRequests).unsafeRunAsync(_ => ())
+      async.unsafeRunAsync(requests.enqueue1(InfiniteRequests))(_ => IO.unit)
     }
     else if(n > 0) {
-      requests.enqueue1(FiniteRequests(n)).unsafeRunAsync(_ => ())
+      async.unsafeRunAsync(requests.enqueue1(FiniteRequests(n)))(_ => IO.unit)
     }
     else {
-      requests.enqueue1(InvalidNumber(n)).unsafeRunAsync(_ => ())
+      async.unsafeRunAsync(requests.enqueue1(InvalidNumber(n)))(_ => IO.unit)
     }
   }
 }
@@ -72,12 +76,12 @@ object StreamSubscription {
   case class InvalidNumber(n: Long) extends Throwable with Request
 
 
-  def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A])(implicit A: Async[F]): F[StreamSubscription[F, A]] =
+  def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A])(implicit A: Effect[F], ec: ExecutionContext): F[StreamSubscription[F, A]] =
     async.unboundedQueue[F, Request].map { requests =>
       new StreamSubscription(requests, sub, stream)
     }
 
-  def subscriptionPipe[F[_], A](state: Stream[F, Request])(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
+  def subscriptionPipe[F[_], A](state: Stream[F, Request])(implicit AA: Effect[F], ec: ExecutionContext): Pipe[F, A, A] = { s =>
 
     def go(ah: Handle[F, A], sh: Handle[F, Request]): Pull[F, A, A] =
       sh.receive1 {
@@ -91,64 +95,54 @@ object StreamSubscription {
           Pull.fail(i)
       }
 
-    def goFinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[Request], Handle[F, Request])]],
+    def goFinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Request, Handle[F, Request])]],
       shh: Handle[F, Request],
       n: Long): Pull[F, A, A] =
       (ah race sh).pull.flatMap {
         case Left(ah) => ah.flatMap { case (as, ah) =>
           if(as.size.toLong < n) Pull.output(as) >> ah.awaitAsync.flatMap(goFinite(_, sh, shh, n - as.size.toLong))
           else if(as.size.toLong == n) Pull.output(as) >>
-            sh.pull.flatMap { _.flatMap {
-              case (Some(s), sh) =>
+            sh.pull.flatMap { _.flatMap { case (s, sh) =>
                 go(ah, sh.push1(s))
-              case (None, _) =>
-                Pull.done
             }}
           else {
             Pull.output(as.take(n.toInt)) >>
-            sh.pull.flatMap { _.flatMap {
-              case (Some(s), sh) =>
+            sh.pull.flatMap { _.flatMap { case (s, sh) =>
                 go(ah.push(as.drop(n.toInt)), sh.push1(s))
-              case (None, _) =>
-                Pull.done
             }}
           }
         }
         case Right(sh) => sh.flatMap { case (s, sh) => s match {
-          case Some(FiniteRequests(m)) =>
+          case FiniteRequests(m) =>
             if(m + n > 0L) {
               sh.await1Async.flatMap { sf => goFinite(ah, sf, sh, m + n) }
             }
             else {
               sh.await1Async.flatMap { sf => goInfinite(ah, sf) }
             }
-          case Some(InfiniteRequests) =>
+          case InfiniteRequests =>
             sh.await1Async.flatMap { sf => goInfinite(ah, sf) }
-          case Some(err @ InvalidNumber(i)) =>
+          case err @ InvalidNumber(i) =>
             Pull.fail(err)
-          case Some(Cancelled) =>
+          case Cancelled =>
             Pull.fail(Cancellation)
-          case None =>
-            sys.error("invalid state!")
         } }
       }
 
-    def goInfinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[Request], Handle[F, Request])]]): Pull[F, A, A] =
+    def goInfinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Request, Handle[F, Request])]]): Pull[F, A, A] =
       (ah race sh).pull flatMap {
         case Left(ah) => ah.flatMap {
           case (as, ah) => Pull.output(as) >> ah.awaitAsync.flatMap(goInfinite(_, sh))
         }
         case Right(sh) => sh.flatMap {
-          case (Some(InfiniteRequests), sh) =>
+          case (InfiniteRequests, sh) =>
             sh.await1Async.flatMap(goInfinite(ah, _))
-          case (Some(FiniteRequests(_)), sh) =>
+          case (FiniteRequests(_), sh) =>
             sh.await1Async.flatMap(goInfinite(ah, _))
-          case (Some(Cancelled), _) =>
+          case (Cancelled, _) =>
             Pull.fail(Cancellation)
-          case (Some(err @ InvalidNumber(i)), _) =>
+          case (err @ InvalidNumber(i), _) =>
             Pull.fail(err)
-          case (None, _) =>
-            Pull.done
         }
       }
     s.pull2(state)(go)
