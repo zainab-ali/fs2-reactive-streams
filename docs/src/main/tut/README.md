@@ -8,19 +8,22 @@ A reactive streams implementation for [fs2](https://github.com/functional-stream
 
 Add the following to your `build.sbt`:
 
+```tut:silent:fail
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.1.0"
+```
+
 ## TL;DR
 
 
 ```tut:book
-import fs2._
+import cats._, cats.effect._, fs2._
 import fs2.interop.reactivestreams._
+import scala.concurrent.ExecutionContext.Implicits.global
 
-implicit val strategy: Strategy = Strategy.fromFixedDaemonPool(4, "worker")
-
-val upstream = Stream[Task, Int](1, 2, 3)
+val upstream = Stream[IO, Int](1, 2, 3)
 val publisher = upstream.toUnicastPublisher
-val downstream = publisher.toStream[Task]
-downstream.runLog.unsafeRun()
+val downstream = publisher.toStream[IO]
+downstream.runLog.unsafeRunSync()
 ```
 
 ## Why?
@@ -38,15 +41,15 @@ This library provides instances of reactivestreams compliant publishers and subs
 To convert a `Stream` into a downstream unicast `org.reactivestreams.Publisher`:
 
 ```tut:silent
-val stream = Stream[Task, Int](1, 2, 3)
+val stream = Stream[IO, Int](1, 2, 3)
 stream.toUnicastPublisher
 ```
 
 To convert an upstream `org.reactivestreams.Publisher` into a `Stream`:
 
 ```tut:silent
-val publisher: org.reactivestreams.Publisher[Int] = Stream[Task, Int](1, 2, 3).toUnicastPublisher
-publisher.toStream[Task]
+val publisher: org.reactivestreams.Publisher[Int] = Stream[IO, Int](1, 2, 3).toUnicastPublisher
+publisher.toStream[IO]
 ```
 
 A unicast publisher must have a single subscriber only.
@@ -60,7 +63,6 @@ import akka._
 import akka.stream._
 import akka.stream.scaladsl._
 import akka.actor.ActorSystem
-import scala.concurrent.ExecutionContext.Implicits.global
 
 implicit val system = ActorSystem("akka-streams-example")
 implicit val materializer = ActorMaterializer()
@@ -71,18 +73,17 @@ To convert from an `Source` to a `Stream`:
 ```tut:book
 val source = Source(1 to 5)
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
-val stream = publisher.toStream[Task]
-stream.runLog.unsafeRun()
+val stream = publisher.toStream[IO]
+stream.runLog.unsafeRunSync()
 ```
 
 To convert from a `Stream` to a `Source`:
 
 ```tut:book
-val stream = Stream.emits[Task, Int]((1 to 5).toSeq)
+val stream = Stream.emits[IO, Int]((1 to 5).toSeq)
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-Task.fromFuture(source.runWith(Sink.seq[Int])).unsafeRun()
+IO.fromFuture(Eval.always(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 ```
-
 ```tut:invisible
 system.terminate()
 ```
