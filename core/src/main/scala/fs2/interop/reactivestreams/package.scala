@@ -25,7 +25,7 @@ package object reactivestreams {
     def toStream[F[_]]()(implicit A: Effect[F], ec: ExecutionContext): Stream[F, A] = fromPublisher(pub)
   }
 
-  implicit final class StreamOps[F[_], A](val stream: Stream[F, A]) extends AnyVal {
+  implicit final class StreamOps[F[_], A](val stream: Stream[F, A]) {
 
     /** Creates a [[fs2.interop.reactive.StreamUnicastPublisher]] from a stream.
       *

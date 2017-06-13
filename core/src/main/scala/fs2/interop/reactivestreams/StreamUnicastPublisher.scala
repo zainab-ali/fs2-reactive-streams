@@ -28,6 +28,6 @@ final class StreamUnicastPublisher[F[_], A](val s: Stream[F, A])(implicit AA: Ef
 }
 
 object StreamUnicastPublisher {
-
-  def apply[F[_], A](s: Stream[F, A])(implicit A: Effect[F], ec: ExecutionContext): StreamUnicastPublisher[F, A] = new StreamUnicastPublisher(s)
+  def apply[F[_], A](s: Stream[F, A])(implicit A: Effect[F], ec: ExecutionContext): StreamUnicastPublisher[F, A] =
+    new StreamUnicastPublisher(s)
 }

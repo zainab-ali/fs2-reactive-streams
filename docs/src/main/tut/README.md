@@ -20,7 +20,7 @@ import cats._, cats.effect._, fs2._
 import fs2.interop.reactivestreams._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-val upstream = Stream[IO, Int](1, 2, 3)
+val upstream = Stream(1, 2, 3).covary[IO]
 val publisher = upstream.toUnicastPublisher
 val downstream = publisher.toStream[IO]
 downstream.runLog.unsafeRunSync()
@@ -41,14 +41,14 @@ This library provides instances of reactivestreams compliant publishers and subs
 To convert a `Stream` into a downstream unicast `org.reactivestreams.Publisher`:
 
 ```tut:silent
-val stream = Stream[IO, Int](1, 2, 3)
+val stream = Stream(1, 2, 3).covary[IO]
 stream.toUnicastPublisher
 ```
 
 To convert an upstream `org.reactivestreams.Publisher` into a `Stream`:
 
 ```tut:silent
-val publisher: org.reactivestreams.Publisher[Int] = Stream[IO, Int](1, 2, 3).toUnicastPublisher
+val publisher: org.reactivestreams.Publisher[Int] = Stream(1, 2, 3).covary[IO].toUnicastPublisher
 publisher.toStream[IO]
 ```
 
@@ -80,7 +80,7 @@ stream.runLog.unsafeRunSync()
 To convert from a `Stream` to a `Source`:
 
 ```tut:book
-val stream = Stream.emits[IO, Int]((1 to 5).toSeq)
+val stream = Stream.emits((1 to 5).toSeq).covary[IO]
 val source = Source.fromPublisher(stream.toUnicastPublisher)
 IO.fromFuture(Eval.always(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 ```

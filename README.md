@@ -27,14 +27,14 @@ import fs2.interop.reactivestreams._
 import scala.concurrent.ExecutionContext.Implicits.global
 // import scala.concurrent.ExecutionContext.Implicits.global
 
-val upstream = Stream[IO, Int](1, 2, 3)
-// upstream: fs2.Stream[cats.effect.IO,Int] = Segment(Emit(Chunk(1, 2, 3)))
+val upstream = Stream(1, 2, 3).covary[IO]
+// upstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val publisher = upstream.toUnicastPublisher
-// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@5f4c3017
+// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@78f74876
 
 val downstream = publisher.toStream[IO]
-// downstream: fs2.Stream[cats.effect.IO,Int] = attemptEval(IO$1506725355).flatMap(<function1>).flatMap(<function1>)
+// downstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 downstream.runLog.unsafeRunSync()
 // res1: Vector[Int] = Vector(1, 2, 3)
@@ -55,14 +55,14 @@ This library provides instances of reactivestreams compliant publishers and subs
 To convert a `Stream` into a downstream unicast `org.reactivestreams.Publisher`:
 
 ```scala
-val stream = Stream[IO, Int](1, 2, 3)
+val stream = Stream(1, 2, 3).covary[IO]
 stream.toUnicastPublisher
 ```
 
 To convert an upstream `org.reactivestreams.Publisher` into a `Stream`:
 
 ```scala
-val publisher: org.reactivestreams.Publisher[Int] = Stream[IO, Int](1, 2, 3).toUnicastPublisher
+val publisher: org.reactivestreams.Publisher[Int] = Stream(1, 2, 3).covary[IO].toUnicastPublisher
 publisher.toStream[IO]
 ```
 
@@ -86,13 +86,13 @@ To convert from an `Source` to a `Stream`:
 
 ```scala
 val source = Source(1 to 5)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(1531989276)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(553763161)))
 
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
-// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(1531989276)])
+// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(553763161)])
 
 val stream = publisher.toStream[IO]
-// stream: fs2.Stream[cats.effect.IO,Int] = attemptEval(IO$492262474).flatMap(<function1>).flatMap(<function1>)
+// stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 stream.runLog.unsafeRunSync()
 // res5: Vector[Int] = Vector(1, 2, 3, 4, 5)
@@ -101,11 +101,11 @@ stream.runLog.unsafeRunSync()
 To convert from a `Stream` to a `Source`:
 
 ```scala
-val stream = Stream.emits[IO, Int]((1 to 5).toSeq)
-// stream: fs2.Stream[cats.effect.IO,Int] = Segment(Emit(Chunk(1, 2, 3, 4, 5)))
+val stream = Stream.emits((1 to 5).toSeq).covary[IO]
+// stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(1236074185)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(474607329)))
 
 IO.fromFuture(Eval.always(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 // res6: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)

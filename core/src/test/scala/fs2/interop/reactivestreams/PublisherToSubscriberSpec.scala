@@ -12,11 +12,10 @@ import scala.concurrent.ExecutionContext
 
 class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChecks {
 
-  implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
+  implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   it should "have the same output as input" in { forAll { (ints: Seq[Int]) =>
-
-    val subscriberStream = Stream.emits[IO, Int](ints).toUnicastPublisher.toStream[IO]
+    val subscriberStream = Stream.emits(ints).covary[IO].toUnicastPublisher.toStream[IO]
 
     subscriberStream.runLog.unsafeRunSync() should === (ints.toVector)
   }}
@@ -31,8 +30,8 @@ class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChec
   }
 
   it should "cancel upstream if downstream completes" in { forAll { (as: Seq[Int], bs: Seq[Int]) =>
+    val subscriberStream = Stream.emits(as ++ bs).covary[IO].toUnicastPublisher.toStream[IO].take(as.size)
 
-    val subscriberStream = Stream.emits[IO, Int](as ++ bs).toUnicastPublisher.toStream[IO].take(as.size)
     subscriberStream.runLog.unsafeRunSync() should === (as.toVector)
   }}
 }

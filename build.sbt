@@ -33,12 +33,11 @@ lazy val noPublishSettings = Seq(
   publishArtifact := false
 )
 
-
 lazy val commonSettings = Seq(
   resolvers := commonResolvers,
   scalacOptions ++= commonScalacOptions,
   libraryDependencies ++= Seq(
-    "co.fs2" %% "fs2-core" % "0.10.0-M1",
+    "co.fs2" %% "fs2-core" % "0.10.0-M2",
     "org.reactivestreams" % "reactive-streams" % "1.0.0",
     "org.scalatest" %% "scalatest" % "3.0.1" % "test",
     "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
