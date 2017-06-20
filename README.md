@@ -1,8 +1,8 @@
 # fs2-reactive-streams
 A reactive streams implementation for [fs2](https://github.com/functional-streams-for-scala/fs2)
 
-[![Build Status](https://travis-ci.org/to-ithaca/fs2-reactive-streams.svg?branch=master)](http://travis-ci.org/to-ithaca/fs2-reactive-streams)
-[![codecov](https://codecov.io/gh/to-ithaca/fs2-reactive-streams/branch/master/graph/badge.svg)](https://codecov.io/gh/to-ithaca/fs2-reactive-streams)
+[![Build Status](https://travis-ci.org/zainab-ali/fs2-reactive-streams.svg?branch=master)](http://travis-ci.org/zainab-ali/fs2-reactive-streams)
+[![codecov](https://codecov.io/gh/zainab-ali/fs2-reactive-streams/branch/master/graph/badge.svg)](https://codecov.io/gh/zainab-ali/fs2-reactive-streams)
 
 ## To use
 
