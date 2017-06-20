@@ -2,11 +2,11 @@ package fs2
 package interop
 package reactivestreams
 
-import fs2.util._
-import fs2.util.syntax._
-import fs2.async.mutable._
-
+import cats.effect._
+import cats.implicits._
 import org.reactivestreams._
+
+import scala.concurrent.ExecutionContext
 
 /** Implementation of an org.reactivestreams.Publisher.
   *
@@ -15,19 +15,19 @@ import org.reactivestreams._
   * @see https://github.com/reactive-streams/reactive-streams-jvm#1-publisher-code
   *
   */
-final class StreamUnicastPublisher[F[_], A](val s: Stream[F, A])(implicit AA: Async[F]) extends Publisher[A] {
+final class StreamUnicastPublisher[F[_], A](val s: Stream[F, A])(implicit AA: Effect[F], ec: ExecutionContext) extends Publisher[A] {
 
   def subscribe(subscriber: Subscriber[_ >: A]): Unit = {
     nonNull(subscriber)
-    StreamSubscription(subscriber, s).map { sub =>
+    async.unsafeRunAsync(StreamSubscription(subscriber, s).map { sub =>
       subscriber.onSubscribe(sub)
-    }.unsafeRunAsync(_ => ())
+    })(_ => IO.unit)
   }
 
   private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
 }
 
 object StreamUnicastPublisher {
-
-  def apply[F[_], A](s: Stream[F, A])(implicit A: Async[F]): StreamUnicastPublisher[F, A] = new StreamUnicastPublisher(s)
+  def apply[F[_], A](s: Stream[F, A])(implicit A: Effect[F], ec: ExecutionContext): StreamUnicastPublisher[F, A] =
+    new StreamUnicastPublisher(s)
 }

@@ -2,46 +2,52 @@ package fs2
 package interop
 package reactivestreams
 
-import fs2.util._
-import fs2.util.syntax._
+import cats.effect._
+import cats.effect.implicits._
+import cats.implicits._
+import fs2.Stream._
 import fs2.async.mutable._
-
 import org.reactivestreams._
+
+import scala.concurrent.ExecutionContext
 
 /** Implementation of a org.reactivestreams.Subscription.
   *
   * This is used by the [[fs2.interop.reactive.StreamUnicastPublisher]] to send elements from a Stream to a downstream reactivestreams system.
-  * 
+  *
   * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */
-final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request], sub: Subscriber[A], stream: Stream[F, A])(implicit A: Async[F]) extends Subscription {
+final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request],
+                                        sub: Subscriber[A],
+                                        stream: Stream[F, A])
+                                       (implicit A: Effect[F], ec: ExecutionContext) extends Subscription {
   import StreamSubscription._
 
-  (stream through subscriptionPipe(requests.dequeueAvailable)).map { a =>
-    sub.onNext(a)
-  }.run.unsafeRunAsync {
+  async.unsafeRunAsync {
+    stream
+      .through(subscriptionPipe(requests.dequeueAvailable))
+      .map(a => sub.onNext(a))
+      .run
+  } {
     case Left(Cancellation) =>
+      IO.unit
     case Left(InvalidNumber(n)) =>
-      sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]"))
+      IO.pure(sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]")))
     case Left(err) =>
-      sub.onError(err)
+      IO.pure(sub.onError(err))
     case Right(_) =>
-      sub.onComplete()
+      IO.pure(sub.onComplete())
   }
 
-  def cancel(): Unit = {
-    requests.enqueue1(Cancelled).unsafeRunAsync(_ => ())
-  }
+  def cancel(): Unit =
+    async.unsafeRunAsync(requests.enqueue1(Cancelled))(_ => IO.unit)
+
   def request(n: Long): Unit = {
-    if(n == java.lang.Long.MAX_VALUE) {
-      requests.enqueue1(InfiniteRequests).unsafeRunAsync(_ => ())
-    }
-    else if(n > 0) {
-      requests.enqueue1(FiniteRequests(n)).unsafeRunAsync(_ => ())
-    }
-    else {
-      requests.enqueue1(InvalidNumber(n)).unsafeRunAsync(_ => ())
-    }
+    val request =
+      if (n == java.lang.Long.MAX_VALUE) InfiniteRequests
+      else if (n > 0) FiniteRequests(n)
+      else InvalidNumber(n)
+    async.unsafeRunAsync(requests.enqueue1(request))(_ => IO.unit)
   }
 }
 
@@ -71,86 +77,83 @@ object StreamSubscription {
     */
   case class InvalidNumber(n: Long) extends Throwable with Request
 
-
-  def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A])(implicit A: Async[F]): F[StreamSubscription[F, A]] =
+  def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A])(implicit A: Effect[F], ec: ExecutionContext): F[StreamSubscription[F, A]] =
     async.unboundedQueue[F, Request].map { requests =>
       new StreamSubscription(requests, sub, stream)
     }
 
-  def subscriptionPipe[F[_], A](state: Stream[F, Request])(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
+  def subscriptionPipe[F[_], A](requests: Stream[F, Request])(implicit AA: Effect[F], ec: ExecutionContext): Pipe[F, A, A] = {
 
-    def go(ah: Handle[F, A], sh: Handle[F, Request]): Pull[F, A, A] =
-      sh.receive1 {
-        case (InfiniteRequests, sh) =>
-          ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goInfinite(af, sf) }}
-        case (FiniteRequests(n), sh) =>
-          ah.awaitAsync.flatMap { af => sh.await1Async.flatMap { sf => goFinite(af, sf, sh, n) }}
-        case (Cancelled, _) =>
-          Pull.fail(Cancellation)
-        case (i: InvalidNumber, _) =>
-          Pull.fail(i)
+    def go(as: Stream[F, A],
+           rs: Stream[F, Request]): Pull[F, A, Unit] =
+      rs.pull.uncons1.flatMap {
+        case None =>
+          Pull.done
+        case Some((request, rs)) => request match {
+          case InfiniteRequests =>
+            as.pull.unconsAsync.flatMap(aap => rs.pull.unconsAsync.flatMap(rap => goInfinite(aap, rap)))
+
+          case FiniteRequests(n) =>
+            as.pull.unconsAsync.flatMap(aap => rs.pull.unconsAsync.flatMap(rap => goFinite(aap, rap, rs, n)))
+
+          case Cancelled              => Pull.fail(Cancellation)
+          case err @ InvalidNumber(_) => Pull.fail(err)
+        }
       }
 
-    def goFinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[Request], Handle[F, Request])]],
-      shh: Handle[F, Request],
-      n: Long): Pull[F, A, A] =
-      (ah race sh).pull.flatMap {
-        case Left(ah) => ah.flatMap { case (as, ah) =>
-          if(as.size.toLong < n) Pull.output(as) >> ah.awaitAsync.flatMap(goFinite(_, sh, shh, n - as.size.toLong))
-          else if(as.size.toLong == n) Pull.output(as) >>
-            sh.pull.flatMap { _.flatMap {
-              case (Some(s), sh) =>
-                go(ah, sh.push1(s))
-              case (None, _) =>
-                Pull.done
-            }}
-          else {
-            Pull.output(as.take(n.toInt)) >>
-            sh.pull.flatMap { _.flatMap {
-              case (Some(s), sh) =>
-                go(ah.push(as.drop(n.toInt)), sh.push1(s))
-              case (None, _) =>
-                Pull.done
-            }}
+    def goFinite(aap: AsyncPull[F, Option[(Segment[A, Unit], Stream[F, A])]],
+                 rap: AsyncPull[F, Option[(Segment[Request, Unit], Stream[F, Request])]],
+                 rs: Stream[F, Request],
+                 n: Long): Pull[F, A, Unit] =
+      (aap race rap).pull.flatMap {
+        case Left(Some((segment, as))) =>
+          Pull.segment(segment.take(n)).flatMap {
+            case Left((_, rem)) =>
+              as.pull.unconsAsync.flatMap(goFinite(_, rap, rs, rem))
+            case Right(rest) =>
+              go(as.cons(rest), rs)
           }
-        }
-        case Right(sh) => sh.flatMap { case (s, sh) => s match {
-          case Some(FiniteRequests(m)) =>
-            if(m + n > 0L) {
-              sh.await1Async.flatMap { sf => goFinite(ah, sf, sh, m + n) }
-            }
-            else {
-              sh.await1Async.flatMap { sf => goInfinite(ah, sf) }
-            }
-          case Some(InfiniteRequests) =>
-            sh.await1Async.flatMap { sf => goInfinite(ah, sf) }
-          case Some(err @ InvalidNumber(i)) =>
-            Pull.fail(err)
-          case Some(Cancelled) =>
-            Pull.fail(Cancellation)
-          case None =>
-            sys.error("invalid state!")
-        } }
+
+        case Right(Some((requests, rs))) =>
+          requests.uncons1 match {
+            case Left(()) =>
+              Pull.done
+            case Right((request, rest)) =>
+              val asyncPull = rs.cons(rest).pull.unconsAsync
+              request match {
+                case InfiniteRequests                => asyncPull.flatMap(goInfinite(aap, _))
+                case FiniteRequests(m) if m + n > 0L => asyncPull.flatMap(goFinite(aap, _, rs, m + n))
+                case FiniteRequests(_)               => asyncPull.flatMap(goInfinite(aap, _))
+                case Cancelled                       => Pull.fail(Cancellation)
+                case err@InvalidNumber(_)            => Pull.fail(err)
+              }
+          }
+
+        case Left(None) | Right(None) =>
+          Pull.done
       }
 
-    def goInfinite(ah: ScopedFuture[F, Pull[F, Nothing, (NonEmptyChunk[A], Handle[F,A])]], sh: ScopedFuture[F, Pull[F, Nothing, (Option[Request], Handle[F, Request])]]): Pull[F, A, A] =
-      (ah race sh).pull flatMap {
-        case Left(ah) => ah.flatMap {
-          case (as, ah) => Pull.output(as) >> ah.awaitAsync.flatMap(goInfinite(_, sh))
-        }
-        case Right(sh) => sh.flatMap {
-          case (Some(InfiniteRequests), sh) =>
-            sh.await1Async.flatMap(goInfinite(ah, _))
-          case (Some(FiniteRequests(_)), sh) =>
-            sh.await1Async.flatMap(goInfinite(ah, _))
-          case (Some(Cancelled), _) =>
-            Pull.fail(Cancellation)
-          case (Some(err @ InvalidNumber(i)), _) =>
-            Pull.fail(err)
-          case (None, _) =>
-            Pull.done
-        }
+    def goInfinite(aap: AsyncPull[F, Option[(Segment[A, Unit], Stream[F, A])]],
+                   rap: AsyncPull[F, Option[(Segment[Request, Unit], Stream[F, Request])]]): Pull[F, A, Unit] =
+      (aap race rap).pull.flatMap {
+        case Left(Some((segment, as))) =>
+          Pull.output(segment) >> as.pull.unconsAsync.flatMap(goInfinite(_, rap))
+
+        case Right(Some((requests, rs))) =>
+          requests.uncons1 match {
+            case Left(()) =>
+              Pull.done
+            case Right((request, rest)) => request match {
+              case InfiniteRequests | FiniteRequests(_) => rs.cons(rest).pull.unconsAsync.flatMap(goInfinite(aap, _))
+              case Cancelled                            => Pull.fail(Cancellation)
+              case err @ InvalidNumber(_)               => Pull.fail(err)
+            }
+          }
+
+        case Left(None) | Right(None) =>
+          Pull.done
       }
-    s.pull2(state)(go)
+
+    stream => go(stream, requests).stream
   }
 }
