@@ -3,7 +3,7 @@ import ReleaseTransformations._
 
 lazy val buildSettings = Seq(
   organization := "com.github.zainab-ali",
-  crossScalaVersions := List("2.12.2", "2.11.11"),
+  crossScalaVersions := List("2.12.3", "2.11.11"),
   scalaVersion := crossScalaVersions.value.head,
   name := "fs2-reactive-streams"
 )
@@ -37,17 +37,17 @@ lazy val commonSettings = Seq(
   resolvers := commonResolvers,
   scalacOptions ++= commonScalacOptions,
   libraryDependencies ++= Seq(
-    "co.fs2" %% "fs2-core" % "0.10.0-M2",
+    "co.fs2" %% "fs2-core" % "0.10.0-M5",
     "org.reactivestreams" % "reactive-streams" % "1.0.0",
-    "org.scalatest" %% "scalatest" % "3.0.1" % "test",
-    "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
+    "org.scalatest" %% "scalatest" % "3.0.3" % "test",
+    "org.scalacheck" %% "scalacheck" % "1.13.5" % "test",
     "org.reactivestreams" % "reactive-streams-tck" % "1.0.0" % "test"
   )
 ) ++ coverageSettings ++ buildSettings
 
 lazy val docSettings = tutSettings ++ Seq(
   libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-stream" % "2.5.0"
+    "com.typesafe.akka" %% "akka-stream" % "2.5.3"
   ),
   tutTargetDirectory := (baseDirectory in ThisBuild).value
 )
