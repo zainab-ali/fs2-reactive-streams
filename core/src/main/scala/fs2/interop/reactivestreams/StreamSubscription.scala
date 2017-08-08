@@ -17,16 +17,16 @@ import scala.concurrent.ExecutionContext
   *
   * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */
-final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request],
-                                        sub: Subscriber[A],
-                                        stream: Stream[F, A])
-                                       (implicit A: Effect[F], ec: ExecutionContext) extends Subscription {
+final class StreamSubscription[F[_]: Effect, A](requests: Queue[F, StreamSubscription.Request],
+                                                sub: Subscriber[A],
+                                                stream: Stream[F, A])
+                                               (implicit ec: ExecutionContext) extends Subscription {
   import StreamSubscription._
 
   async.unsafeRunAsync {
     stream
       .through(subscriptionPipe(requests.dequeueAvailable))
-      .map(a => sub.onNext(a))
+      .map(sub.onNext)
       .run
   } {
     case Left(Cancellation) =>
@@ -77,12 +77,12 @@ object StreamSubscription {
     */
   case class InvalidNumber(n: Long) extends Throwable with Request
 
-  def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A])(implicit A: Effect[F], ec: ExecutionContext): F[StreamSubscription[F, A]] =
+  def apply[F[_]: Effect, A](sub: Subscriber[A], stream: Stream[F, A])(implicit ec: ExecutionContext): F[StreamSubscription[F, A]] =
     async.unboundedQueue[F, Request].map { requests =>
       new StreamSubscription(requests, sub, stream)
     }
 
-  def subscriptionPipe[F[_], A](requests: Stream[F, Request])(implicit AA: Effect[F], ec: ExecutionContext): Pipe[F, A, A] = {
+  def subscriptionPipe[F[_]: Effect, A](requests: Stream[F, Request])(implicit ec: ExecutionContext): Pipe[F, A, A] = {
 
     def go(as: Stream[F, A],
            rs: Stream[F, Request]): Pull[F, A, Unit] =
