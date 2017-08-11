@@ -84,45 +84,51 @@ object StreamSubscription {
 
   def subscriptionPipe[F[_]: Effect, A](requests: Stream[F, Request])(implicit ec: ExecutionContext): Pipe[F, A, A] = {
 
-    def go(as: Stream[F, A],
-           rs: Stream[F, Request]): Pull[F, A, Unit] =
-      rs.pull.uncons1.flatMap {
+    def go(aap: AsyncPull[F, Option[(Segment[A, Unit], Stream[F, A])]],
+           rap: AsyncPull[F, Option[(Segment[Request, Unit], Stream[F, Request])]])
+        : Pull[F, A, Unit] =
+      rap.pull.flatMap {
+        case Some((requests, rs)) => 
+          requests.uncons1 match {
+            case Left(()) =>
+              rs.pull.unconsAsync.flatMap(go(aap, _))
+            case Right((request, rest)) =>
+              request match {
+                case InfiniteRequests =>
+                  rs.cons(rest).pull.unconsAsync.flatMap(goInfinite(aap, _))
+                case FiniteRequests(n) =>
+                  rs.cons(rest).pull.unconsAsync.flatMap(goFinite(aap, _, n))
+                case Cancelled              =>
+                  Pull.fail(Cancellation)
+                case err @ InvalidNumber(_) =>
+                  Pull.fail(err)
+              }
+          }
         case None =>
           Pull.done
-        case Some((request, rs)) => request match {
-          case InfiniteRequests =>
-            as.pull.unconsAsync.flatMap(aap => rs.pull.unconsAsync.flatMap(rap => goInfinite(aap, rap)))
-
-          case FiniteRequests(n) =>
-            as.pull.unconsAsync.flatMap(aap => rs.pull.unconsAsync.flatMap(rap => goFinite(aap, rap, rs, n)))
-
-          case Cancelled              => Pull.fail(Cancellation)
-          case err @ InvalidNumber(_) => Pull.fail(err)
-        }
       }
 
     def goFinite(aap: AsyncPull[F, Option[(Segment[A, Unit], Stream[F, A])]],
                  rap: AsyncPull[F, Option[(Segment[Request, Unit], Stream[F, Request])]],
-                 rs: Stream[F, Request],
                  n: Long): Pull[F, A, Unit] =
       (aap race rap).pull.flatMap {
         case Left(Some((segment, as))) =>
           Pull.segment(segment.take(n)).flatMap {
             case Left((_, rem)) =>
-              as.pull.unconsAsync.flatMap(goFinite(_, rap, rs, rem))
+              as.pull.unconsAsync.flatMap(goFinite(_, rap, rem))
             case Right(rest) =>
-              go(as.cons(rest), rs)
+              as.cons(rest).pull.unconsAsync.flatMap(go(_, rap))
           }
 
         case Right(Some((requests, rs))) =>
           requests.uncons1 match {
             case Left(()) =>
-              Pull.done
+              rs.pull.unconsAsync.flatMap(goFinite(aap, _, n))
             case Right((request, rest)) =>
               val asyncPull = rs.cons(rest).pull.unconsAsync
               request match {
                 case InfiniteRequests                => asyncPull.flatMap(goInfinite(aap, _))
-                case FiniteRequests(m) if m + n > 0L => asyncPull.flatMap(goFinite(aap, _, rs, m + n))
+                case FiniteRequests(m) if m + n > 0L => asyncPull.flatMap(goFinite(aap, _, m + n))
                 case FiniteRequests(_)               => asyncPull.flatMap(goInfinite(aap, _))
                 case Cancelled                       => Pull.fail(Cancellation)
                 case err@InvalidNumber(_)            => Pull.fail(err)
@@ -141,8 +147,7 @@ object StreamSubscription {
 
         case Right(Some((requests, rs))) =>
           requests.uncons1 match {
-            case Left(()) =>
-              Pull.done
+            case Left(()) => rs.pull.unconsAsync.flatMap(goInfinite(aap, _))
             case Right((request, rest)) => request match {
               case InfiniteRequests | FiniteRequests(_) => rs.cons(rest).pull.unconsAsync.flatMap(goInfinite(aap, _))
               case Cancelled                            => Pull.fail(Cancellation)
@@ -154,6 +159,10 @@ object StreamSubscription {
           Pull.done
       }
 
-    stream => go(stream, requests).stream
+    _.pull.unconsAsync.flatMap { aap =>
+      requests.pull.unconsAsync.flatMap { rap =>
+        go(aap, rap)
+      }
+    }.stream
   }
 }

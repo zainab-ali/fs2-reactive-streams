@@ -2,14 +2,13 @@ package fs2
 package interop
 package reactivestreams
 
-import java.util.concurrent.Executors
+import scala.concurrent.ExecutionContext
 
 import cats.effect._
 import org.reactivestreams._
 import org.reactivestreams.tck.{PublisherVerification, TestEnvironment}
-import org.scalatest.testng.TestNGSuiteLike
-
-import scala.concurrent.ExecutionContext
+import org.testng.annotations.Test
+import org.scalatest.testng._
 
 class FailedSubscription(sub: Subscriber[_]) extends Subscription {
   def cancel(): Unit = {}
@@ -25,7 +24,7 @@ class FailedPublisher extends Publisher[Int] {
 
 class StreamUnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
 
-  implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
+  implicit val ec: ExecutionContext = ExecutionContext.global
 
   def createPublisher(n: Long): StreamUnicastPublisher[IO, Int] = {
     val s =
