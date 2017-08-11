@@ -17,10 +17,11 @@ import scala.concurrent.ExecutionContext
   *
   * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */
-final class StreamSubscription[F[_]: Effect, A](requests: Queue[F, StreamSubscription.Request],
-                                                sub: Subscriber[A],
-                                                stream: Stream[F, A])
-                                               (implicit ec: ExecutionContext) extends Subscription {
+final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request],
+                                        sub: Subscriber[A],
+                                        stream: Stream[F, A])
+                                       (implicit F: Effect[F],
+                                        ec: ExecutionContext) extends Subscription {
   import StreamSubscription._
 
   async.unsafeRunAsync {
@@ -40,14 +41,14 @@ final class StreamSubscription[F[_]: Effect, A](requests: Queue[F, StreamSubscri
   }
 
   def cancel(): Unit =
-    async.unsafeRunAsync(requests.enqueue1(Cancelled))(_ => IO.unit)
+    F.runAsync(requests.enqueue1(Cancelled))(_ => IO.unit).unsafeRunSync
 
   def request(n: Long): Unit = {
     val request =
       if (n == java.lang.Long.MAX_VALUE) InfiniteRequests
       else if (n > 0) FiniteRequests(n)
       else InvalidNumber(n)
-    async.unsafeRunAsync(requests.enqueue1(request))(_ => IO.unit)
+    F.runAsync(requests.enqueue1(request))(_ => IO.unit).unsafeRunSync
   }
 }
 
