@@ -21,8 +21,14 @@ final class StreamUnicastPublisher[F[_]: Effect, A](val s: Stream[F, A])
   def subscribe(subscriber: Subscriber[_ >: A]): Unit = {
     nonNull(subscriber)
     async.unsafeRunAsync {
-      StreamSubscription(subscriber, s).map(subscriber.onSubscribe)
-    }(_ => IO.unit)
+      StreamSubscription(subscriber, s).map { subscription =>
+        subscriber.onSubscribe(subscription)
+        subscription
+      }
+    } {
+      case Left(err) => IO(err.printStackTrace())
+      case Right(subscription) => IO(subscription.unsafeStart)
+    }
   }
 
   private def nonNull[A](a: A): Unit = if (a == null) throw new NullPointerException()

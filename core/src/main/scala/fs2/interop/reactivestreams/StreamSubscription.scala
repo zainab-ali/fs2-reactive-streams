@@ -24,21 +24,22 @@ final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Re
                                         ec: ExecutionContext) extends Subscription {
   import StreamSubscription._
 
-  async.unsafeRunAsync {
-    stream
-      .through(subscriptionPipe(requests.dequeueAvailable))
-      .map(sub.onNext)
-      .run
-  } {
-    case Left(Cancellation) =>
-      IO.unit
-    case Left(InvalidNumber(n)) =>
-      IO.pure(sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]")))
-    case Left(err) =>
-      IO.pure(sub.onError(err))
-    case Right(_) =>
-      IO.pure(sub.onComplete())
-  }
+  def unsafeStart(): Unit = 
+    async.unsafeRunAsync {
+      stream
+        .through(subscriptionPipe(requests.dequeueAvailable))
+        .map(sub.onNext)
+        .run
+    } {
+      case Left(Cancellation) =>
+        IO.unit
+      case Left(InvalidNumber(n)) =>
+        IO.pure(sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]")))
+      case Left(err) =>
+        IO.pure(sub.onError(err))
+      case Right(_) =>
+        IO.pure(sub.onComplete())
+    }
 
   def cancel(): Unit =
     F.runAsync(requests.enqueue1(Cancelled))(_ => IO.unit).unsafeRunSync
