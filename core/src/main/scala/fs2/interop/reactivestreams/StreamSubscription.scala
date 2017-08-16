@@ -13,7 +13,7 @@ import scala.concurrent.ExecutionContext
 
 /** Implementation of a org.reactivestreams.Subscription.
   *
-  * This is used by the [[fs2.interop.reactive.StreamUnicastPublisher]] to send elements from a Stream to a downstream reactivestreams system.
+  * This is used by the [[fs2.interop.reactivestreams.StreamUnicastPublisher]] to send elements from a Stream to a downstream reactivestreams system.
   *
   * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */

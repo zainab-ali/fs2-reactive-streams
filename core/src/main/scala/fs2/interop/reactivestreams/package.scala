@@ -30,7 +30,7 @@ package object reactivestreams {
 
   implicit final class StreamOps[F[_], A](val stream: Stream[F, A]) {
 
-    /** Creates a [[fs2.interop.reactive.StreamUnicastPublisher]] from a stream.
+    /** Creates a [[fs2.interop.reactivestreams.StreamUnicastPublisher]] from a stream.
       *
       * This publisher can only have a single subscription.
       * The stream is only ran when elements are requested.
