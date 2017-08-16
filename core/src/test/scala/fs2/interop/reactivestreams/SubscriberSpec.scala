@@ -62,14 +62,17 @@ final class WhiteboxSubscriber[A](sub: StreamSubscriber[IO, A],
 
 class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
-  val scheduler: Scheduler = Scheduler.fromFixedDaemonPool(2, "subscriber-blackbox-spec-scheduler")
+  val (scheduler: Scheduler, _) =
+    Scheduler
+      .allocate[IO](corePoolSize = 2, threadPrefix = "subscriber-blackbox-spec-scheduler")
+      .unsafeRunSync()
   private val counter = new AtomicInteger()
 
   def createSubscriber(): StreamSubscriber[IO, Int] = StreamSubscriber[IO, Int]().unsafeRunSync()
 
   override def triggerRequest(s: Subscriber[_ >: Int]): Unit = {
     val req = s.asInstanceOf[StreamSubscriber[IO, Int]].sub.dequeue1
-    scheduler.scheduleOnce(100 milliseconds)(req.unsafeRunAsync(_ => ()))
+    (scheduler.sleep_[IO](100 milliseconds) ++ Stream.eval(req)).run.unsafeRunAsync(_ => ())
   }
 
   def createElement(i: Int): Int = counter.incrementAndGet()

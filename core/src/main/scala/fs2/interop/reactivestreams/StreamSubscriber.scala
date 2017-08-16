@@ -16,7 +16,8 @@ import scala.concurrent.ExecutionContext
   * 
   * @see https://github.com/reactive-streams/reactive-streams-jvm#2-subscriber-code
   */
-final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(implicit A: Effect[F], ec: ExecutionContext) extends Subscriber[A] {
+final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(implicit A: Effect[F], ec: ExecutionContext)
+  extends Subscriber[A] {
 
   /** Called by an upstream reactivestreams system */
   def onSubscribe(s: Subscription): Unit = {
@@ -42,7 +43,7 @@ final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(imp
   /** Obtain a Stream */
   def stream: Stream[F, A] = sub.stream
 
-  private def nonNull[A](a: A): Unit = if(a == null) throw new NullPointerException()
+  private def nonNull[A](a: A): Unit = if (a == null) throw new NullPointerException()
 }
 
 object StreamSubscriber {
@@ -77,7 +78,7 @@ object StreamSubscriber {
   }
 
 
-  def queue[F[_], A]()(implicit AA: Effect[F], ec: ExecutionContext): F[Queue[F, A]] = {
+  def queue[F[_], A]()(implicit F: Effect[F], ec: ExecutionContext): F[Queue[F, A]] = {
 
     /** Represents the state of the Queue */
     sealed trait State
@@ -124,11 +125,11 @@ object StreamSubscriber {
           case o => o
         }.flatMap { _.previous match {
           case _ : FirstRequest =>
-            AA.pure(s.request(1))
+            F.pure(s.request(1))
           case Uninitialized =>
-            AA.pure(())
+            F.pure(())
           case o =>
-            AA.pure(s.cancel()) >> AA.raiseError(new Error(s"received subscription in invalid state [$o]"))
+            F.pure(s.cancel()) >> F.raiseError(new Error(s"received subscription in invalid state [$o]"))
         }}
 
         def onNext(a: A): F[Unit] = qref.modify {
@@ -140,9 +141,9 @@ object StreamSubscriber {
           case PendingElement(s, r) =>
             r.setAsyncPure(Right(Some(a)))
           case Cancelled =>
-            AA.pure(())
+            F.pure(())
           case o =>
-            AA.raiseError(new Error(s"received record [$a] in invalid state [$o]"))
+            F.raiseError(new Error(s"received record [$a] in invalid state [$o]"))
         }}
 
         def onComplete(): F[Unit] = qref.modify { _ =>
@@ -151,7 +152,7 @@ object StreamSubscriber {
           case PendingElement(sub, r) =>
             r.setAsyncPure(Right(None))
           case o =>
-            AA.pure(())
+            F.pure(())
         }}
 
         def onError(t: Throwable): F[Unit] = qref.modify { _ =>
@@ -160,7 +161,7 @@ object StreamSubscriber {
           case PendingElement(sub, r) =>
             r.setAsyncPure(Left(t))
           case o =>
-            AA.pure(())
+            F.pure(())
         }}
 
         def onFinalize: F[Unit] = qref.modify {
@@ -171,15 +172,11 @@ object StreamSubscriber {
         }.flatMap { o =>
           o.previous match {
           case PendingElement(sub, r) =>
-            AA.pure {
-              sub.cancel()
-            } >> r.setAsyncPure(Right(None))
+            F.pure(sub.cancel()) >> r.setAsyncPure(Right(None))
           case Idle(sub) =>
-            AA.pure {
-              sub.cancel()
-            }
+            F.pure(sub.cancel())
           case o =>
-            AA.pure(())
+            F.pure(())
         }}
 
         def dequeue1: F[Either[Throwable, Option[A]]] = async.ref[F, Either[Throwable, Option[A]]].flatMap { r =>
@@ -193,13 +190,13 @@ object StreamSubscriber {
             case Uninitialized =>
               r.get
             case Idle(sub) =>
-              AA.pure(sub.request(1)).flatMap( _ => r.get)
+              F.pure(sub.request(1)).flatMap( _ => r.get)
             case Errored(err) =>
-              AA.pure(Left(err))
+              F.pure(Left(err))
             case Complete =>
-              AA.pure(Right(None))
+              F.pure(Right(None))
             case FirstRequest(_) | PendingElement(_, _) | Cancelled =>
-              AA.pure(Left(new Error(s"received request in invalid state [${c.previous}]")))
+              F.pure(Left(new Error(s"received request in invalid state [${c.previous}]")))
           })
         }
       }

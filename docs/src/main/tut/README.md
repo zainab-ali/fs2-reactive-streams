@@ -9,8 +9,9 @@ A reactive streams implementation for [fs2](https://github.com/functional-stream
 Add the following to your `build.sbt`:
 
 ```tut:silent:fail
-libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.1.0"
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.2.0"
 ```
+This is dependent on version `0.10.0-M5` of fs2.
 
 ## TL;DR
 
@@ -87,6 +88,13 @@ IO.fromFuture(Eval.always(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 ```tut:invisible
 system.terminate()
 ```
+
+## Version Compatability
+
+| fs2        | fs2-reactive-streams |
+|:----------:|:--------------------:|
+| 0.9.4      | 0.1.0                |
+| 0.10.0-M2  | 0.2.0                |
 
 ## Licence
 
