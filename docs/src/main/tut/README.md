@@ -97,6 +97,15 @@ system.terminate()
 | 0.10.0-M2  | 0.2.0                |
 | 0.10.0-M5  | 0.2.1                |
 
+## Contributors
+
+The following people have taken their time and effort to improve fs2-reactive-streams.
+
+* Ross A Baker [@rossabaker](https://github.com/rossabaker)
+* Bjørn Madsen [@aeons](https://github.com/aeons)
+
+Thank you for your help!
+
 ## Licence
 
 fs2-reactive-streams is licensed under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
