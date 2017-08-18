@@ -2,8 +2,6 @@ package fs2
 package interop
 package reactivestreams
 
-import java.util.concurrent.Executors
-
 import cats.effect._
 import org.scalatest._
 import org.scalatest.prop._
@@ -12,7 +10,7 @@ import scala.concurrent.ExecutionContext
 
 class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChecks {
 
-  implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
+  implicit val ec: ExecutionContext = ExecutionContext.global
 
   it should "have the same output as input" in { forAll { (ints: Seq[Int]) =>
     val subscriberStream = Stream.emits(ints).covary[IO].toUnicastPublisher.toStream[IO]
