@@ -91,11 +91,11 @@ system.terminate()
 
 ## Version Compatability
 
-| fs2        | fs2-reactive-streams |
-|:----------:|:--------------------:|
-| 0.9.4      | 0.1.0                |
-| 0.10.0-M2  | 0.2.0                |
-| 0.10.0-M5  | 0.2.1                |
+| fs2            | fs2-reactive-streams | status     |
+|:--------------:|:--------------------:|:----------:|
+| 0.10.0-M5      | 0.2.1                | current    |
+| ~~0.10.0-M2~~  | ~~0.2.0~~            | ~~broken~~ |
+| 0.9.4          | 0.1.0                | eol        |
 
 ## Contributors
 

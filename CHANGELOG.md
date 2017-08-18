@@ -10,6 +10,8 @@ This is entirely the hard work of **@rossabaker**, who found and fixed the issue
 
 ## v0.2.0
 
+**_This version is broken.  Please use v0.2.1 instead!_**
+
 This release upgrades fs2 from 0.9 to 0.10.0-M2.  fs2's `Task` has been replaced with `IO` from cats-effect.
 Thank you **@aeons** for doing the heavy lifting!
 
