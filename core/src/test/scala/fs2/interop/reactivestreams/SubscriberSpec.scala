@@ -2,8 +2,6 @@ package fs2
 package interop
 package reactivestreams
 
-
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 import cats.effect._
@@ -16,7 +14,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
-  implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
+  implicit val ec: ExecutionContext = ExecutionContext.global
   private val counter = new AtomicInteger()
 
   def createSubscriber(p: SubscriberWhiteboxVerification.WhiteboxSubscriberProbe[Int]): Subscriber[Int] =
@@ -26,7 +24,6 @@ class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new Tes
 
   def createElement(i: Int): Int = counter.getAndIncrement
 }
-
 
 final class WhiteboxSubscriber[A](sub: StreamSubscriber[IO, A],
   probe: WhiteboxSubscriberProbe[A]) extends Subscriber[A] {
@@ -61,11 +58,13 @@ final class WhiteboxSubscriber[A](sub: StreamSubscriber[IO, A],
 }
 
 class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
-  implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
+  implicit val ec: ExecutionContext = ExecutionContext.global
+
   val (scheduler: Scheduler, _) =
     Scheduler
       .allocate[IO](corePoolSize = 2, threadPrefix = "subscriber-blackbox-spec-scheduler")
       .unsafeRunSync()
+
   private val counter = new AtomicInteger()
 
   def createSubscriber(): StreamSubscriber[IO, Int] = StreamSubscriber[IO, Int]().unsafeRunSync()
