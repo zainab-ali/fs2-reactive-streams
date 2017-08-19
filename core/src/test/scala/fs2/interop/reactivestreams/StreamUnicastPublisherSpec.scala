@@ -42,13 +42,3 @@ class StreamUnicastPublisherSpec extends PublisherVerification[Int](new TestEnvi
 
   def createFailedPublisher(): FailedPublisher = new FailedPublisher()
 }
-
-// class Reproduction extends FlatSpec {
-//   it should "should reproduce" in {
-//     (0 to 100).foreach { i =>
-//       println(s"running loop [$i]...")
-//       val spec = new StreamUnicastPublisherSpec()
-//       spec.required_spec306_afterSubscriptionIsCancelledRequestMustBeNops
-//     }
-//   }
-// }

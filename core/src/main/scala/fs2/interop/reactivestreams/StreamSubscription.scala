@@ -33,7 +33,7 @@ final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Re
   }
 
   def cancel(): Unit = {
-    cancelled.modify1(_ => true)
+    cancelled.modify(_ => true)
     requests.enqueue1(Cancelled).unsafeRunAsync(_ => ())
   }
 
@@ -74,7 +74,7 @@ object StreamSubscription {
 
   def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A])(implicit A: Async[F]): F[StreamSubscription[F, A]] =
     async.unboundedQueue[F, Request].map { requests =>
-      new StreamSubscription(requests, Ref(true), sub, stream)
+      new StreamSubscription(requests, Ref(false), sub, stream)
     }
 
   def subscriptionPipe[F[_], A](state: Stream[F, Request])(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
