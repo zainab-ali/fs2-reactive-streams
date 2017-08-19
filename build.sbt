@@ -18,40 +18,28 @@ lazy val commonScalacOptions = Seq(
   "-language:postfixOps"
 )
 
-lazy val commonResolvers = Seq(
- Resolver.sonatypeRepo("releases")
-)
+lazy val commonResolvers = Seq(Resolver.sonatypeRepo("releases"))
 
-lazy val coverageSettings = Seq(
-  coverageMinimum := 60,
-  coverageFailOnMinimum := false
-)
+lazy val coverageSettings = Seq(coverageMinimum := 60, coverageFailOnMinimum := false)
 
-lazy val noPublishSettings = Seq(
-  publish := (),
-  publishLocal := (),
-  publishArtifact := false
-)
+lazy val noPublishSettings = Seq(publish := (), publishLocal := (), publishArtifact := false)
 
 lazy val commonSettings = Seq(
-  resolvers := commonResolvers,
-  scalacOptions ++= commonScalacOptions,
-  libraryDependencies ++= Seq(
-    "co.fs2" %% "fs2-core" % "0.10.0-M5",
-    "org.reactivestreams" % "reactive-streams" % "1.0.1",
-    "org.scalatest" %% "scalatest" % "3.0.3" % "test",
-    "org.scalacheck" %% "scalacheck" % "1.13.5" % "test",
-    "org.reactivestreams" % "reactive-streams-tck" % "1.0.1" % "test"
-  )
-) ++ coverageSettings ++ buildSettings
+    resolvers := commonResolvers,
+    scalacOptions ++= commonScalacOptions,
+    libraryDependencies ++= Seq(
+      "co.fs2" %% "fs2-core" % "0.10.0-M5",
+      "org.reactivestreams" % "reactive-streams" % "1.0.1",
+      "org.scalatest" %% "scalatest" % "3.0.3" % "test",
+      "org.scalacheck" %% "scalacheck" % "1.13.5" % "test",
+      "org.reactivestreams" % "reactive-streams-tck" % "1.0.1" % "test"
+    )
+  ) ++ coverageSettings ++ buildSettings
 
 lazy val docSettings = tutSettings ++ Seq(
-  libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-stream" % "2.5.4"
-  ),
-  tutTargetDirectory := (baseDirectory in ThisBuild).value
-)
-
+    libraryDependencies ++= Seq("com.typesafe.akka" %% "akka-stream" % "2.5.4"),
+    tutTargetDirectory := (baseDirectory in ThisBuild).value
+  )
 
 val publishSettings = Seq(
   releaseCrossBuild := true,
@@ -60,12 +48,17 @@ val publishSettings = Seq(
   developers += Developer("zainab-ali", "Zainab Ali", "", url("http://github.com/zainab-ali")),
   licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.html")),
   homepage := Some(url("https://github.com/zainab-ali/fs2-reactive-streams")),
-  scmInfo := Some(ScmInfo(url("https://github.com/zainab-ali/fs2-reactive-streams"),
-    "git@github.com:zainab-ali/fs2-reactive-streams")),
+  scmInfo := Some(
+    ScmInfo(
+      url("https://github.com/zainab-ali/fs2-reactive-streams"),
+      "git@github.com:zainab-ali/fs2-reactive-streams"
+    )
+  ),
   credentials ++= (for {
     username <- Option(System.getenv().get("SONATYPE_USERNAME"))
     password <- Option(System.getenv().get("SONATYPE_PASSWORD"))
-  } yield Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", username, password)).toSeq,
+  } yield
+    Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", username, password)).toSeq,
   releaseProcess := Seq[ReleaseStep](
     checkSnapshotDependencies,
     inquireVersions,
@@ -78,7 +71,8 @@ val publishSettings = Seq(
     setNextVersion,
     commitNextVersion,
     ReleaseStep(action = Command.process("sonatypeReleaseAll", _), enableCrossBuild = true),
-    pushChanges)
+    pushChanges
+  )
 )
 
 lazy val mimaSettings = Seq(

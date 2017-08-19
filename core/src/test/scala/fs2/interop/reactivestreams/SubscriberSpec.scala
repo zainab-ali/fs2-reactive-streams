@@ -6,27 +6,40 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import cats.effect._
 import org.reactivestreams._
-import org.reactivestreams.tck.SubscriberWhiteboxVerification.{SubscriberPuppet, WhiteboxSubscriberProbe}
-import org.reactivestreams.tck.{SubscriberBlackboxVerification, SubscriberWhiteboxVerification, TestEnvironment}
+import org.reactivestreams.tck.SubscriberWhiteboxVerification.{
+  SubscriberPuppet,
+  WhiteboxSubscriberProbe
+}
+import org.reactivestreams.tck.{
+  SubscriberBlackboxVerification,
+  SubscriberWhiteboxVerification,
+  TestEnvironment
+}
 import org.scalatest.testng.TestNGSuiteLike
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class SubscriberWhiteboxSpec extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
+class SubscriberWhiteboxSpec
+    extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L))
+    with TestNGSuiteLike {
   implicit val ec: ExecutionContext = ExecutionContext.global
   private val counter = new AtomicInteger()
 
-  def createSubscriber(p: SubscriberWhiteboxVerification.WhiteboxSubscriberProbe[Int]): Subscriber[Int] =
-    StreamSubscriber[IO, Int]().map { s =>
-      new WhiteboxSubscriber(s, p)
-    }.unsafeRunSync()
+  def createSubscriber(
+    p: SubscriberWhiteboxVerification.WhiteboxSubscriberProbe[Int]
+  ): Subscriber[Int] =
+    StreamSubscriber[IO, Int]()
+      .map { s =>
+        new WhiteboxSubscriber(s, p)
+      }
+      .unsafeRunSync()
 
   def createElement(i: Int): Int = counter.getAndIncrement
 }
 
-final class WhiteboxSubscriber[A](sub: StreamSubscriber[IO, A],
-  probe: WhiteboxSubscriberProbe[A]) extends Subscriber[A] {
+final class WhiteboxSubscriber[A](sub: StreamSubscriber[IO, A], probe: WhiteboxSubscriberProbe[A])
+    extends Subscriber[A] {
 
   def onError(t: Throwable): Unit = {
     sub.onError(t)
@@ -37,7 +50,9 @@ final class WhiteboxSubscriber[A](sub: StreamSubscriber[IO, A],
     sub.onSubscribe(s)
     probe.registerOnSubscribe(new SubscriberPuppet {
       override def triggerRequest(elements: Long): Unit = {
-        (0 to elements.toInt).foldLeft(IO.unit)((t, _) => t.flatMap( _ => sub.sub.dequeue1.map(_ => ()))).unsafeRunAsync(_ => ())
+        (0 to elements.toInt)
+          .foldLeft(IO.unit)((t, _) => t.flatMap(_ => sub.sub.dequeue1.map(_ => ())))
+          .unsafeRunAsync(_ => ())
       }
 
       override def signalCancel(): Unit = {
@@ -57,7 +72,9 @@ final class WhiteboxSubscriber[A](sub: StreamSubscriber[IO, A],
   }
 }
 
-class SubscriberBlackboxSpec extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
+class SubscriberBlackboxSpec
+    extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L))
+    with TestNGSuiteLike {
   implicit val ec: ExecutionContext = ExecutionContext.global
 
   val (scheduler: Scheduler, _) =

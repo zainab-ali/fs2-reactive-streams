@@ -22,7 +22,9 @@ class FailedPublisher extends Publisher[Int] {
   }
 }
 
-class StreamUnicastPublisherSpec extends PublisherVerification[Int](new TestEnvironment(1000L)) with TestNGSuiteLike {
+class StreamUnicastPublisherSpec
+    extends PublisherVerification[Int](new TestEnvironment(1000L))
+    with TestNGSuiteLike {
 
   implicit val ec: ExecutionContext = ExecutionContext.global
 

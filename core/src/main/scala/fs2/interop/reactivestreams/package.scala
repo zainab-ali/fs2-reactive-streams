@@ -13,13 +13,15 @@ package object reactivestreams {
     *
     * The publisher only receives a subscriber when the stream is run.
     */
-  def fromPublisher[F[_]: Effect, A](p: Publisher[A])
-                                    (implicit ec: ExecutionContext): Stream[F, A] =
-    Stream.eval(StreamSubscriber[F, A]().map { s =>
-      p.subscribe(s)
-      s
-    }).flatMap(_.sub.stream)
-
+  def fromPublisher[F[_]: Effect, A](
+    p: Publisher[A]
+  )(implicit ec: ExecutionContext): Stream[F, A] =
+    Stream
+      .eval(StreamSubscriber[F, A]().map { s =>
+        p.subscribe(s)
+        s
+      })
+      .flatMap(_.sub.stream)
 
   implicit final class PublisherOps[A](val pub: Publisher[A]) extends AnyVal {
 
@@ -35,7 +37,8 @@ package object reactivestreams {
       * This publisher can only have a single subscription.
       * The stream is only ran when elements are requested.
       */
-    def toUnicastPublisher()(implicit F: Effect[F], ec: ExecutionContext): StreamUnicastPublisher[F, A] =
+    def toUnicastPublisher()(implicit F: Effect[F],
+                             ec: ExecutionContext): StreamUnicastPublisher[F, A] =
       StreamUnicastPublisher(stream)
   }
 }

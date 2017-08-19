@@ -12,11 +12,13 @@ class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChec
 
   implicit val ec: ExecutionContext = ExecutionContext.global
 
-  it should "have the same output as input" in { forAll { (ints: Seq[Int]) =>
-    val subscriberStream = Stream.emits(ints).covary[IO].toUnicastPublisher.toStream[IO]
+  it should "have the same output as input" in {
+    forAll { (ints: Seq[Int]) =>
+      val subscriberStream = Stream.emits(ints).covary[IO].toUnicastPublisher.toStream[IO]
 
-    subscriberStream.runLog.unsafeRunSync() should === (ints.toVector)
-  }}
+      subscriberStream.runLog.unsafeRunSync() should ===(ints.toVector)
+    }
+  }
 
   object TestError extends Exception("BOOM")
 
@@ -24,12 +26,15 @@ class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChec
     val input: Stream[IO, Int] = Stream(1, 2, 3) ++ Stream.fail(TestError)
     val output: Stream[IO, Int] = input.toUnicastPublisher.toStream[IO]
 
-    output.run.attempt.unsafeRunSync() should === (Left(TestError))
+    output.run.attempt.unsafeRunSync() should ===(Left(TestError))
   }
 
-  it should "cancel upstream if downstream completes" in { forAll { (as: Seq[Int], bs: Seq[Int]) =>
-    val subscriberStream = Stream.emits(as ++ bs).covary[IO].toUnicastPublisher.toStream[IO].take(as.size)
+  it should "cancel upstream if downstream completes" in {
+    forAll { (as: Seq[Int], bs: Seq[Int]) =>
+      val subscriberStream =
+        Stream.emits(as ++ bs).covary[IO].toUnicastPublisher.toStream[IO].take(as.size)
 
-    subscriberStream.runLog.unsafeRunSync() should === (as.toVector)
-  }}
+      subscriberStream.runLog.unsafeRunSync() should ===(as.toVector)
+    }
+  }
 }
