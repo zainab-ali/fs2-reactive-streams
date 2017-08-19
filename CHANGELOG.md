@@ -7,7 +7,7 @@ This release bugfixes `StreamSubscription.cancel` in a multi-threaded `Execution
 This would have remained lethally undetected if not for **@aeons**, who switched the tests to use the global `ExecutionContext`.  Thanks much!
 
 * [#28](https://github.com/zainab-ali/fs2-reactive-streams/pull/28): Use the global `ExecutionContext` for all tests.  by @aeons
-* [#29](https://github.com/zainab-ali/fs2-reactive-streams/pull/29): Fix bug in `StreamSubscription` by adding a flag for synchronous execution of `cancel`.  by @zainab-ali
+* [#30](https://github.com/zainab-ali/fs2-reactive-streams/pull/30): Fix bug in `StreamSubscription` by adding a flag for synchronous execution of `cancel`.  by @zainab-ali
 
 ## v0.2.1
 
