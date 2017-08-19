@@ -1,6 +1,17 @@
 # Changelog
 
+## v0.2.2
+
+This release bugfixes `StreamSubscription.cancel` in a multi-threaded `ExecutionContext`.
+
+This would have remained lethally undetected if not for **@aeons**, who switched the tests to use the global `ExecutionContext`.  Thanks much!
+
+* [#28](https://github.com/zainab-ali/fs2-reactive-streams/pull/28): Use the global `ExecutionContext` for all tests.  by @aeons
+* [#29](https://github.com/zainab-ali/fs2-reactive-streams/pull/29): Fix bug in `StreamSubscription` by adding a flag for synchronous execution of `cancel`.  by @zainab-ali
+
 ## v0.2.1
+
+**_This version is also broken.  Please use v0.2.2 instead!_**
 
 This release bugfixes the `StreamUnicastPublisher` in a multi-threaded `ExecutionContext`.  It also upgrades the fs2 dependency to 0.10.0-M5.
 
@@ -10,7 +21,7 @@ This is entirely the hard work of **@rossabaker**, who found and fixed the issue
 
 ## v0.2.0
 
-**_This version is broken.  Please use v0.2.1 instead!_**
+**_This version is broken.  Please use v0.2.2 instead!_**
 
 This release upgrades fs2 from 0.9 to 0.10.0-M2.  fs2's `Task` has been replaced with `IO` from cats-effect.
 Thank you **@aeons** for doing the heavy lifting!
