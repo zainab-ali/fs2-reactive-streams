@@ -5,6 +5,7 @@ package reactivestreams
 import fs2.util._
 import fs2.util.syntax._
 import fs2.async.mutable._
+import fs2.internal._
 
 import org.reactivestreams._
 
@@ -14,7 +15,9 @@ import org.reactivestreams._
   * 
   * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */
-final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request], sub: Subscriber[A], stream: Stream[F, A])(implicit A: Async[F]) extends Subscription {
+final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request],
+  cancelled: Ref[Boolean],
+  sub: Subscriber[A], stream: Stream[F, A])(implicit A: Async[F]) extends Subscription {
   import StreamSubscription._
 
   (stream through subscriptionPipe(requests.dequeueAvailable)).map { a =>
@@ -30,18 +33,15 @@ final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Re
   }
 
   def cancel(): Unit = {
+    cancelled.modify(_ => true)
     requests.enqueue1(Cancelled).unsafeRunAsync(_ => ())
   }
+
   def request(n: Long): Unit = {
-    if(n == java.lang.Long.MAX_VALUE) {
-      requests.enqueue1(InfiniteRequests).unsafeRunAsync(_ => ())
-    }
-    else if(n > 0) {
-      requests.enqueue1(FiniteRequests(n)).unsafeRunAsync(_ => ())
-    }
-    else {
-      requests.enqueue1(InvalidNumber(n)).unsafeRunAsync(_ => ())
-    }
+    val request = if(n == java.lang.Long.MAX_VALUE) InfiniteRequests
+    else if(n > 0) FiniteRequests(n)
+    else InvalidNumber(n)
+    (if(cancelled.get) A.pure(()) else requests.enqueue1(request)).unsafeRunAsync(_ => ())
   }
 }
 
@@ -74,7 +74,7 @@ object StreamSubscription {
 
   def apply[F[_], A](sub: Subscriber[A], stream: Stream[F, A])(implicit A: Async[F]): F[StreamSubscription[F, A]] =
     async.unboundedQueue[F, Request].map { requests =>
-      new StreamSubscription(requests, sub, stream)
+      new StreamSubscription(requests, Ref(false), sub, stream)
     }
 
   def subscriptionPipe[F[_], A](state: Stream[F, Request])(implicit AA: Async[F]): Pipe[F, A, A] = { s =>
