@@ -28,6 +28,15 @@ Thank you **@aeons** for doing the heavy lifting!
 
  * [#25](https://github.com/zainab-ali/fs2-reactive-streams/pull/25): updated dependency to fs2-0.10.0 and cats-effect. by @aeons
 
+## v0.1.1
+
+This release backports the bugfix to `StreamSubscription.cancel` in a multi-threaded `ExecutionContext`.
+
+* [#31](https://github.com/zainab-ali/fs2-reactive-streams/pull/31): Backported bugfix in `StreamSubscription` by adding a flag for synchronous execution of `cancel`.  by @zainab-ali
+
+
 ## v0.1.0
+
+**_This version is broken.  Please use v0.1.1 instead!_**
 
 First release!

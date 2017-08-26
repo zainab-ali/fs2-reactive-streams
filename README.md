@@ -32,7 +32,7 @@ val upstream = Stream(1, 2, 3).covary[IO]
 // upstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val publisher = upstream.toUnicastPublisher
-// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@71e98110
+// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@3980547c
 
 val downstream = publisher.toStream[IO]
 // downstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
@@ -87,10 +87,10 @@ To convert from an `Source` to a `Stream`:
 
 ```scala
 val source = Source(1 to 5)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(1280285359)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(1897396867)))
 
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
-// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(1280285359)])
+// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(1897396867)])
 
 val stream = publisher.toStream[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
@@ -106,7 +106,7 @@ val stream = Stream.emits((1 to 5).toSeq).covary[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(946352957)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(1252372954)))
 
 IO.fromFuture(Eval.always(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 // res6: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)
@@ -121,6 +121,7 @@ IO.fromFuture(Eval.always(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 | 0.10.0-M5      | 0.2.2                | current    |
 | ~~0.10.0-M5~~  | ~~0.2.1~~            | ~~broken~~ |
 | ~~0.10.0-M2~~  | ~~0.2.0~~            | ~~broken~~ |
+| 0.9.4          | 0.1.1                | current    |
 | ~~0.9.4~~      | ~~0.1.0~~            | ~~broken~~ |
 
 ## Contributors

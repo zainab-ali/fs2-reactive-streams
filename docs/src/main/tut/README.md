@@ -96,6 +96,7 @@ system.terminate()
 | 0.10.0-M5      | 0.2.2                | current    |
 | ~~0.10.0-M5~~  | ~~0.2.1~~            | ~~broken~~ |
 | ~~0.10.0-M2~~  | ~~0.2.0~~            | ~~broken~~ |
+| 0.9.4          | 0.1.1                | current    |
 | ~~0.9.4~~      | ~~0.1.0~~            | ~~broken~~ |
 
 ## Contributors
