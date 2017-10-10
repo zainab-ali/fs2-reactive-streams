@@ -28,7 +28,7 @@ lazy val commonSettings = Seq(
     resolvers := commonResolvers,
     scalacOptions ++= commonScalacOptions,
     libraryDependencies ++= Seq(
-      "co.fs2" %% "fs2-core" % "0.10.0-M5",
+      "co.fs2" %% "fs2-core" % "0.10.0-M6",
       "org.reactivestreams" % "reactive-streams" % "1.0.1",
       "org.scalatest" %% "scalatest" % "3.0.3" % "test",
       "org.scalacheck" %% "scalacheck" % "1.13.5" % "test",
