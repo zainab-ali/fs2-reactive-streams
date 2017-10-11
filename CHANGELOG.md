@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.3
+
+This release is a simple upgrade from fs2 0.10.0-M5 to 0.10.0-M6
+
+* [#32](https://github.com/zainab-ali/fs2-reactive-streams/pull/32): Upgrade fs2 to 0.10.0-M6 by @aeons
+
 ## v0.2.2
 
 This release bugfixes `StreamSubscription.cancel` in a multi-threaded `ExecutionContext`.
