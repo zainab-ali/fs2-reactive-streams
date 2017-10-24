@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.4
+
+This release is a simple upgrade from fs2 0.10.0-M6 to 0.10.0-M7, as well as an upgrade to Scala 2.12.4
+
+* [#32](https://github.com/zainab-ali/fs2-reactive-streams/pull/34): Upgrade Scala and fs2 by @aeons
+
 ## v0.2.3
 
 This release is a simple upgrade from fs2 0.10.0-M5 to 0.10.0-M6
