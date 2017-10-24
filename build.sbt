@@ -94,5 +94,5 @@ lazy val docs = (project in file("docs"))
   .enablePlugins(TutPlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, docs)
+  .aggregate(core)
   .settings(noPublishSettings)
