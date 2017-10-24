@@ -68,12 +68,9 @@ val publishSettings = Seq(
     commitReleaseVersion,
     tagRelease,
     ReleaseStep(action = releaseStepCommand("publishSigned"), enableCrossBuild = true),
-    //ReleaseStep(action = Command.process("publishSigned", _), enableCrossBuild = true),
     setNextVersion,
     commitNextVersion,
     ReleaseStep(action = releaseStepCommand("sonatypeReleaseAll"), enableCrossBuild = true),
-    //releaseStepCommand("sonatypeReleaseAll").copy(enableCrossBuild = true),
-    //ReleaseStep(action = Command.process("sonatypeReleaseAll", _), enableCrossBuild = true),
     pushChanges
   )
 )
