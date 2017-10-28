@@ -22,7 +22,7 @@ lazy val commonResolvers = Seq(Resolver.sonatypeRepo("releases"))
 
 lazy val coverageSettings = Seq(coverageMinimum := 60, coverageFailOnMinimum := false)
 
-lazy val noPublishSettings = Seq(publish := (), publishLocal := (), publishArtifact := false)
+lazy val noPublishSettings = Seq(publish := {}, publishLocal := {}, publishArtifact := false)
 
 lazy val commonSettings = Seq(
     resolvers := commonResolvers,
@@ -36,7 +36,7 @@ lazy val commonSettings = Seq(
     )
   ) ++ coverageSettings ++ buildSettings
 
-lazy val docSettings = tutSettings ++ Seq(
+lazy val docSettings = Seq(
     libraryDependencies ++= Seq("com.typesafe.akka" %% "akka-stream" % "2.5.4"),
     tutTargetDirectory := (baseDirectory in ThisBuild).value
   )
@@ -67,10 +67,10 @@ val publishSettings = Seq(
     setReleaseVersion,
     commitReleaseVersion,
     tagRelease,
-    ReleaseStep(action = Command.process("publishSigned", _), enableCrossBuild = true),
+    ReleaseStep(action = releaseStepCommand("publishSigned"), enableCrossBuild = true),
     setNextVersion,
     commitNextVersion,
-    ReleaseStep(action = Command.process("sonatypeReleaseAll", _), enableCrossBuild = true),
+    ReleaseStep(action = releaseStepCommand("sonatypeReleaseAll"), enableCrossBuild = true),
     pushChanges
   )
 )
@@ -91,7 +91,8 @@ lazy val docs = (project in file("docs"))
   .settings(commonSettings)
   .settings(docSettings)
   .settings(noPublishSettings)
+  .enablePlugins(TutPlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, docs)
+  .aggregate(core)
   .settings(noPublishSettings)
