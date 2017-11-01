@@ -134,7 +134,7 @@ object StreamSubscriber {
                 case Uninitialized =>
                   F.pure(())
                 case o =>
-                  F.pure(s.cancel()) >> F
+                  F.pure(s.cancel()) *> F
                     .raiseError(new Error(s"received subscription in invalid state [$o]"))
               }
             }
@@ -197,7 +197,7 @@ object StreamSubscriber {
             .flatMap { o =>
               o.previous match {
                 case PendingElement(sub, r) =>
-                  F.pure(sub.cancel()) >> r.setAsyncPure(Right(None))
+                  F.pure(sub.cancel()) *> r.setAsyncPure(Right(None))
                 case Idle(sub) =>
                   F.pure(sub.cancel())
                 case o =>
