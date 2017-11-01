@@ -47,7 +47,7 @@ final class StreamSubscription[F[_], A](
     }
 
   def cancel(): Unit =
-    F.runAsync(cancelled.setSyncPure(true) >> requests.enqueue1(Cancelled))(_ => IO.unit)
+    F.runAsync(cancelled.setSyncPure(true) *> requests.enqueue1(Cancelled))(_ => IO.unit)
       .unsafeRunSync()
 
   def request(n: Long): Unit = {
@@ -163,7 +163,7 @@ object StreamSubscription {
     ): Pull[F, A, Unit] =
       (aap race rap).pull.flatMap {
         case Left(Some((segment, as))) =>
-          Pull.output(segment) >> as.pull.unconsAsync.flatMap(goInfinite(_, rap))
+          Pull.output(segment) *> as.pull.unconsAsync.flatMap(goInfinite(_, rap))
 
         case Right(Some((requests, rs))) =>
           requests.uncons1 match {
