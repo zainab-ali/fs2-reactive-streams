@@ -11,7 +11,7 @@ Add the following to your `build.sbt`:
 ```tut:silent:fail
 libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.2.4"
 ```
-This is dependent on version `0.10.0-M6` of fs2.
+This is dependent on version `0.10.0-M7` of fs2.
 
 ## TL;DR
 
