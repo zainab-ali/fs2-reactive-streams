@@ -28,7 +28,7 @@ lazy val commonSettings = Seq(
     resolvers ++= commonResolvers,
     scalacOptions ++= commonScalacOptions,
     libraryDependencies ++= Seq(
-      "co.fs2" %% "fs2-core" % "0.10.0-M8",
+      "co.fs2" %% "fs2-core" % "0.15.0",
       "org.reactivestreams" % "reactive-streams" % "1.0.1",
       "org.scalatest" %% "scalatest" % "3.0.3" % "test",
       "org.scalacheck" %% "scalacheck" % "1.13.5" % "test",
@@ -75,15 +75,15 @@ val publishSettings = Seq(
   )
 )
 
-lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set("com.github.zainab-ali" %% "fs2-reactive-streams" % "0.2.4")
-)
+//lazy val mimaSettings = Seq(
+//  mimaPreviousArtifacts := Set("com.github.zainab-ali" %% "fs2-reactive-streams" % "0.2.4")
+//)
 
 lazy val core = (project in file("core"))
   .settings(moduleName := "fs2-reactive-streams")
   .settings(commonSettings)
   .settings(publishSettings)
-  .settings(mimaSettings)
+//  .settings(mimaSettings)
 
 lazy val docs = (project in file("docs"))
   .settings(moduleName := "docs")
