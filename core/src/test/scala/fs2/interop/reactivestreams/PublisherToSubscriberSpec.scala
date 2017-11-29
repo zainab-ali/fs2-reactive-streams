@@ -23,7 +23,7 @@ class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChec
   object TestError extends Exception("BOOM")
 
   it should "propagate errors downstream" in {
-    val input: Stream[IO, Int] = Stream(1, 2, 3) ++ Stream.fail(TestError)
+    val input: Stream[IO, Int] = Stream(1, 2, 3) ++ Stream.raiseError(TestError)
     val output: Stream[IO, Int] = input.toUnicastPublisher.toStream[IO]
 
     output.run.attempt.unsafeRunSync() should ===(Left(TestError))
