@@ -47,7 +47,7 @@ final class StreamSubscription[F[_], A](
     }
 
   def cancel(): Unit =
-    F.runAsync(cancelled.setSyncPure(true) *> requests.enqueue1(Cancelled))(_ => IO.unit)
+    F.runAsync(cancelled.setSync(true) *> requests.enqueue1(Cancelled))(_ => IO.unit)
       .unsafeRunSync()
 
   def request(n: Long): Unit = {
@@ -107,7 +107,7 @@ object StreamSubscription {
     ): Pull[F, A, Unit] =
       rap.pull.flatMap {
         case Some((requests, rs)) =>
-          requests.uncons1 match {
+          requests.force.uncons1 match {
             case Left(()) =>
               rs.pull.unconsAsync.flatMap(go(aap, _))
             case Right((request, rest)) =>
@@ -117,9 +117,9 @@ object StreamSubscription {
                 case FiniteRequests(n) =>
                   rs.cons(rest).pull.unconsAsync.flatMap(goFinite(aap, _, n))
                 case Cancelled =>
-                  Pull.fail(Cancellation)
+                  Pull.raiseError(Cancellation)
                 case err @ InvalidNumber(_) =>
-                  Pull.fail(err)
+                  Pull.raiseError(err)
               }
           }
         case None =>
@@ -139,7 +139,7 @@ object StreamSubscription {
           }
 
         case Right(Some((requests, rs))) =>
-          requests.uncons1 match {
+          requests.force.uncons1 match {
             case Left(()) =>
               rs.pull.unconsAsync.flatMap(goFinite(aap, _, n))
             case Right((request, rest)) =>
@@ -148,8 +148,8 @@ object StreamSubscription {
                 case InfiniteRequests => asyncPull.flatMap(goInfinite(aap, _))
                 case FiniteRequests(m) if m + n > 0L => asyncPull.flatMap(goFinite(aap, _, m + n))
                 case FiniteRequests(_) => asyncPull.flatMap(goInfinite(aap, _))
-                case Cancelled => Pull.fail(Cancellation)
-                case err @ InvalidNumber(_) => Pull.fail(err)
+                case Cancelled => Pull.raiseError(Cancellation)
+                case err @ InvalidNumber(_) => Pull.raiseError(err)
               }
           }
 
@@ -163,17 +163,17 @@ object StreamSubscription {
     ): Pull[F, A, Unit] =
       (aap race rap).pull.flatMap {
         case Left(Some((segment, as))) =>
-          Pull.output(segment) *> as.pull.unconsAsync.flatMap(goInfinite(_, rap))
+          Pull.output(segment) >> as.pull.unconsAsync.flatMap(goInfinite(_, rap))
 
         case Right(Some((requests, rs))) =>
-          requests.uncons1 match {
+          requests.force.uncons1 match {
             case Left(()) => rs.pull.unconsAsync.flatMap(goInfinite(aap, _))
             case Right((request, rest)) =>
               request match {
                 case InfiniteRequests | FiniteRequests(_) =>
                   rs.cons(rest).pull.unconsAsync.flatMap(goInfinite(aap, _))
-                case Cancelled => Pull.fail(Cancellation)
-                case err @ InvalidNumber(_) => Pull.fail(err)
+                case Cancelled => Pull.raiseError(Cancellation)
+                case err @ InvalidNumber(_) => Pull.raiseError(err)
               }
           }
 

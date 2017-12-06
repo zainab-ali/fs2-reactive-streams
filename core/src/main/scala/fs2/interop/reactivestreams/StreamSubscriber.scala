@@ -5,7 +5,7 @@ package reactivestreams
 import cats._
 import cats.effect._
 import cats.implicits._
-import fs2.async.Ref
+import fs2.async.{Promise, Ref}
 import org.reactivestreams._
 
 import scala.concurrent.ExecutionContext
@@ -90,14 +90,14 @@ object StreamSubscriber {
       *
       *  @param req the first downstream request
       */
-    case class FirstRequest(req: Ref[F, Either[Throwable, Option[A]]]) extends State
+    case class FirstRequest(req: Promise[F, Either[Throwable, Option[A]]]) extends State
 
     /** The subscriber has requested an element from upstream, but not yet received it
       *
       * @param sub the subscription to upstream
       * @param req the request from downstream
       */
-    case class PendingElement(sub: Subscription, req: Ref[F, Either[Throwable, Option[A]]])
+    case class PendingElement(sub: Subscription, req: Promise[F, Either[Throwable, Option[A]]])
         extends State
 
     /** No downstream requests are open and a subscription has been received.
@@ -150,7 +150,7 @@ object StreamSubscriber {
             .flatMap { c =>
               c.previous match {
                 case PendingElement(s, r) =>
-                  r.setAsyncPure(Right(Some(a)))
+                  r.complete(Right(Some(a)))
                 case Cancelled =>
                   F.pure(())
                 case o =>
@@ -166,7 +166,7 @@ object StreamSubscriber {
             .flatMap {
               _.previous match {
                 case PendingElement(sub, r) =>
-                  r.setAsyncPure(Right(None))
+                  r.complete(Right(None))
                 case o =>
                   F.pure(())
               }
@@ -180,7 +180,7 @@ object StreamSubscriber {
             .flatMap {
               _.previous match {
                 case PendingElement(sub, r) =>
-                  r.setAsyncPure(Left(t))
+                  r.complete(Left(t))
                 case o =>
                   F.pure(())
               }
@@ -197,7 +197,7 @@ object StreamSubscriber {
             .flatMap { o =>
               o.previous match {
                 case PendingElement(sub, r) =>
-                  F.pure(sub.cancel()) *> r.setAsyncPure(Right(None))
+                  F.pure(sub.cancel()) *> r.complete(Right(None))
                 case Idle(sub) =>
                   F.pure(sub.cancel())
                 case o =>
@@ -206,7 +206,7 @@ object StreamSubscriber {
             }
 
         def dequeue1: F[Either[Throwable, Option[A]]] =
-          async.ref[F, Either[Throwable, Option[A]]].flatMap { r =>
+          async.promise[F, Either[Throwable, Option[A]]].flatMap { r =>
             qref
               .modify {
                 case Uninitialized =>
