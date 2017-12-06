@@ -1,10 +1,23 @@
-# Changelog
+# Changelog 
+
+## v0.2.6
+
+This release is a simple upgrade from fs2 0.10.0-M8 to 0.10.0-M9
+
+* [#40](https://github.com/zainab-ali/fs2-reactive-streams/pull/40): Upgrade fs2 to 0.10.0-M9 by @aeons
+
+
+## v0.2.5
+
+This release is a simple upgrade from fs2 0.10.0-M7 to 0.10.0-M8, as well as a transitive upgrade to cats 1.0.0-RC1
+
+* [#37](https://github.com/zainab-ali/fs2-reactive-streams/pull/37): Update fs2 (and transitively cats 1.0-RC1) by @aeons
 
 ## v0.2.4
 
 This release is a simple upgrade from fs2 0.10.0-M6 to 0.10.0-M7, as well as an upgrade to Scala 2.12.4
 
-* [#32](https://github.com/zainab-ali/fs2-reactive-streams/pull/34): Upgrade Scala and fs2 by @aeons
+* [#34](https://github.com/zainab-ali/fs2-reactive-streams/pull/34): Upgrade Scala and fs2 by @aeons
 
 ## v0.2.3
 
