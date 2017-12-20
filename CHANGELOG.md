@@ -1,5 +1,11 @@
 # Changelog 
 
+## v0.2.7
+
+This release is a simple upgrade from fs2 0.10.0-M9 to 0.10.0-M10, as well as an upgrade from Scala 2.11.11 to 2.11.12.
+
+* [#41](https://github.com/zainab-ali/fs2-reactive-streams/pull/41): Upgrade fs2-core, reactive-streams, scalatest, scala-2.11 by @rossabaker
+
 ## v0.2.6
 
 This release is a simple upgrade from fs2 0.10.0-M8 to 0.10.0-M9

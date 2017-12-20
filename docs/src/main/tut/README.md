@@ -9,9 +9,9 @@ A reactive streams implementation for [fs2](https://github.com/functional-stream
 Add the following to your `build.sbt`:
 
 ```tut:silent:fail
-libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.2.6"
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.2.7"
 ```
-This is dependent on version `0.10.0-M9` of fs2.
+This is dependent on version `0.10.0-M10` of fs2.
 
 ## TL;DR
 
@@ -83,7 +83,7 @@ To convert from a `Stream` to a `Source`:
 ```tut:book
 val stream = Stream.emits((1 to 5).toSeq).covary[IO]
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-IO.fromFuture(Eval.always(source.runWith(Sink.seq[Int]))).unsafeRunSync()
+IO.fromFuture(IO(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 ```
 ```tut:invisible
 system.terminate()
@@ -93,6 +93,7 @@ system.terminate()
 
 | fs2            | fs2-reactive-streams | status     |
 |:--------------:|:--------------------:|:----------:|
+| 0.10.0-M10     | 0.2.7                | current    |
 | 0.10.0-M9      | 0.2.6                | current    |
 | 0.10.0-M8      | 0.2.5                | current    |
 | 0.10.0-M7      | 0.2.4                | current    |
