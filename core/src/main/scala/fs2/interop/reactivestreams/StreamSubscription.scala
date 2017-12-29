@@ -32,7 +32,8 @@ final class StreamSubscription[F[_], A](
       stream
         .through(subscriptionPipe(requests.dequeueAvailable))
         .map(sub.onNext)
-        .run
+        .compile
+        .drain
     } {
       case Left(Cancellation) =>
         IO.unit

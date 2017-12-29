@@ -16,7 +16,7 @@ class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChec
     forAll { (ints: Seq[Int]) =>
       val subscriberStream = Stream.emits(ints).covary[IO].toUnicastPublisher.toStream[IO]
 
-      subscriberStream.runLog.unsafeRunSync() should ===(ints.toVector)
+      subscriberStream.compile.toVector.unsafeRunSync() should ===(ints.toVector)
     }
   }
 
@@ -26,7 +26,7 @@ class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChec
     val input: Stream[IO, Int] = Stream(1, 2, 3) ++ Stream.raiseError(TestError)
     val output: Stream[IO, Int] = input.toUnicastPublisher.toStream[IO]
 
-    output.run.attempt.unsafeRunSync() should ===(Left(TestError))
+    output.compile.drain.attempt.unsafeRunSync() should ===(Left(TestError))
   }
 
   it should "cancel upstream if downstream completes" in {
@@ -34,7 +34,7 @@ class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChec
       val subscriberStream =
         Stream.emits(as ++ bs).covary[IO].toUnicastPublisher.toStream[IO].take(as.size)
 
-      subscriberStream.runLog.unsafeRunSync() should ===(as.toVector)
+      subscriberStream.compile.toVector.unsafeRunSync() should ===(as.toVector)
     }
   }
 }

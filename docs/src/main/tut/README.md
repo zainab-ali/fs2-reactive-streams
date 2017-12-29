@@ -24,7 +24,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 val upstream = Stream(1, 2, 3).covary[IO]
 val publisher = upstream.toUnicastPublisher
 val downstream = publisher.toStream[IO]
-downstream.runLog.unsafeRunSync()
+downstream.compile.toVector.unsafeRunSync()
 ```
 
 ## Why?
@@ -75,7 +75,7 @@ To convert from an `Source` to a `Stream`:
 val source = Source(1 to 5)
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
 val stream = publisher.toStream[IO]
-stream.runLog.unsafeRunSync()
+stream.compile.toVector.unsafeRunSync()
 ```
 
 To convert from a `Stream` to a `Source`:
@@ -93,6 +93,7 @@ system.terminate()
 
 | fs2            | fs2-reactive-streams | status     |
 |:--------------:|:--------------------:|:----------:|
+| 0.10.0         | 0.2.8                | current    |
 | 0.10.0-M10     | 0.2.7                | current    |
 | 0.10.0-M9      | 0.2.6                | current    |
 | 0.10.0-M8      | 0.2.5                | current    |

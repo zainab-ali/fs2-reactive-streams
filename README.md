@@ -32,12 +32,12 @@ val upstream = Stream(1, 2, 3).covary[IO]
 // upstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val publisher = upstream.toUnicastPublisher
-// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@345608ff
+// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@2e3abd12
 
 val downstream = publisher.toStream[IO]
 // downstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
-downstream.runLog.unsafeRunSync()
+downstream.compile.toVector.unsafeRunSync()
 // res1: Vector[Int] = Vector(1, 2, 3)
 ```
 
@@ -87,15 +87,15 @@ To convert from an `Source` to a `Stream`:
 
 ```scala
 val source = Source(1 to 5)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(512958006)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(781238326)))
 
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
-// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(512958006)])
+// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(781238326)])
 
 val stream = publisher.toStream[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
-stream.runLog.unsafeRunSync()
+stream.compile.toVector.unsafeRunSync()
 // res5: Vector[Int] = Vector(1, 2, 3, 4, 5)
 ```
 
@@ -106,7 +106,7 @@ val stream = Stream.emits((1 to 5).toSeq).covary[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(1656288589)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(499319389)))
 
 IO.fromFuture(IO(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 // res6: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)
@@ -118,6 +118,7 @@ IO.fromFuture(IO(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 
 | fs2            | fs2-reactive-streams | status     |
 |:--------------:|:--------------------:|:----------:|
+| 0.10.0         | 0.2.8                | current    |
 | 0.10.0-M10     | 0.2.7                | current    |
 | 0.10.0-M9      | 0.2.6                | current    |
 | 0.10.0-M8      | 0.2.5                | current    |
