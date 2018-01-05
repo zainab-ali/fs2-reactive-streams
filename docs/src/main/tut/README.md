@@ -1,17 +1,18 @@
-# fs2-reactive-streams
+ fs2-reactive-streams
 A reactive streams implementation for [fs2](https://github.com/functional-streams-for-scala/fs2)
 
 [![Build Status](https://travis-ci.org/zainab-ali/fs2-reactive-streams.svg?branch=master)](http://travis-ci.org/zainab-ali/fs2-reactive-streams)
 [![codecov](https://codecov.io/gh/zainab-ali/fs2-reactive-streams/branch/master/graph/badge.svg)](https://codecov.io/gh/zainab-ali/fs2-reactive-streams)
+[![Nexus](https://img.shields.io/nexus/r/https/oss.sonatype.org/com.github.zainab-ali/fs2-reactive-streams_2.12.svg)](https://oss.sonatype.org/content/groups/public/com/github/zainab-ali/fs2-reactive-streams_2.12/)
 
 ## To use
 
 Add the following to your `build.sbt`:
 
 ```tut:silent:fail
-libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.2.7"
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.2.8"
 ```
-This is dependent on version `0.10.0-M10` of fs2.
+This is dependent on version `0.10.0-M11` of fs2.
 
 ## TL;DR
 
@@ -93,7 +94,7 @@ system.terminate()
 
 | fs2            | fs2-reactive-streams | status     |
 |:--------------:|:--------------------:|:----------:|
-| 0.10.0         | 0.2.8                | current    |
+| 0.10.0-M11     | 0.2.8                | current    |
 | 0.10.0-M10     | 0.2.7                | current    |
 | 0.10.0-M9      | 0.2.6                | current    |
 | 0.10.0-M8      | 0.2.5                | current    |
