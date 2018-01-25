@@ -24,7 +24,7 @@ final class StreamSubscription[F[_], A](
     extends Subscription {
   import StreamSubscription._
 
-  def onError(e: Throwable) = F.delay(sub.onError(e))
+  def onError(e: Throwable) = F.delay(sub.onError(e)) *> cancelled.set(true)
 
   def unsafeStart(): Unit = {
     def subscriptionPipe: Pipe[F, A, A] =
