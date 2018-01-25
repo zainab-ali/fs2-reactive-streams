@@ -31,6 +31,7 @@ final class StreamSubscription[F[_], A](
       in => {
         def go(s: Stream[F, A]): Pull[F, A, Unit] =
           Pull.eval(requests.dequeue1).flatMap {
+            case Cancelled => Pull.done
             case InfiniteRequests => s.pull.echo
             case FiniteRequests(n) =>
               s.pull.take(n).flatMap {
@@ -42,8 +43,6 @@ final class StreamSubscription[F[_], A](
         go(in).stream
       }
 
-    // TODO what if the stream successfully completes just as `cancel` is called?
-    // I guess that's unavoidable
     val s =
       stream
         .through(subscriptionPipe)
@@ -55,13 +54,15 @@ final class StreamSubscription[F[_], A](
             ifTrue = F.unit,
             ifFalse = cancelled.set(true) *> F.delay(sub.onComplete)
           )
-        }.compile.drain
+        }
+        .compile
+        .drain
 
     async.unsafeRunAsync(s)(_ => IO.unit)
   }
 
   def cancel(): Unit =
-    async.unsafeRunAsync(cancelled.set(true))(_ => IO.unit)
+    async.unsafeRunAsync(cancelled.set(true) *> requests.enqueue1(Cancelled))(_ => IO.unit)
 
   def request(n: Long): Unit = {
     val request =
@@ -90,6 +91,8 @@ object StreamSubscription {
     */
   case class FiniteRequests(n: Long) extends Request
 
+  /** The downstream subscriber has cancelled the subscription. */
+  case object Cancelled extends Request
 
   def apply[F[_]: Effect, A](sub: Subscriber[A], stream: Stream[F, A])(
     implicit ec: ExecutionContext
