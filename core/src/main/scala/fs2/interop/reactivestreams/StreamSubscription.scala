@@ -3,11 +3,9 @@ package interop
 package reactivestreams
 
 import cats.effect._
-import cats.effect.implicits._
 import cats.implicits._
-import fs2.Stream._
-import fs2.async._
-import fs2.async.mutable._
+import fs2._, async.mutable.{Signal, Queue}
+import fs2.async.Ref
 import org.reactivestreams._
 
 import scala.concurrent.ExecutionContext
@@ -31,35 +29,33 @@ final class StreamSubscription[F[_], A](
     async.unsafeRunAsync {
       stream
         .through(subscriptionPipe(requests.dequeueAvailable))
-        .map(sub.onNext)
+        .evalMap(x => F.delay(sub.onNext(x)))
         .compile
         .drain
     } {
       case Left(Cancellation) =>
         IO.unit
       case Left(InvalidNumber(n)) =>
-        IO.pure(
-          sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]"))
-        )
+        IO(sub.onError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]")))
       case Left(err) =>
-        IO.pure(sub.onError(err))
+        IO(sub.onError(err))
       case Right(_) =>
-        IO.pure(sub.onComplete())
+        IO(sub.onComplete())
     }
 
+  // Ask about why this was changed, only difference is a `shift`
   def cancel(): Unit =
-    F.runAsync(cancelled.setSync(true) *> requests.enqueue1(Cancelled))(_ => IO.unit)
-      .unsafeRunSync()
+    async.unsafeRunAsync(cancelled.setSync(true) *> requests.enqueue1(Cancelled))(_ => IO.unit)
+
 
   def request(n: Long): Unit = {
     val request =
       if (n == java.lang.Long.MAX_VALUE) InfiniteRequests
       else if (n > 0) FiniteRequests(n)
       else InvalidNumber(n)
-    F.runAsync(cancelled.get >>= (c => if (c) F.pure(()) else requests.enqueue1(request)))(
+    async.unsafeRunAsync(cancelled.get.ifM(ifTrue = F.unit, ifFalse = requests.enqueue1(request)))(
         _ => IO.unit
       )
-      .unsafeRunSync
   }
 }
 
