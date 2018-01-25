@@ -42,15 +42,20 @@ final class StreamSubscription[F[_], A](
         go(in).stream
       }
 
+    // TODO what if the stream successfully completes just as `cancel` is called?
+    // I guess that's unavoidable
     val s =
       stream
         .through(subscriptionPipe)
         .interruptWhen(cancelled)
         .evalMap(x => F.delay(sub.onNext(x)))
         .handleErrorWith(e => Stream.eval(onError(e)))
-        .onFinalize(cancelled.set(true) *> F.delay(sub.onComplete))
-        .compile
-        .drain
+        .onFinalize {
+          cancelled.get.ifM(
+            ifTrue = F.unit,
+            ifFalse = cancelled.set(true) *> F.delay(sub.onComplete)
+          )
+        }.compile.drain
 
     async.unsafeRunAsync(s)(_ => IO.unit)
   }
