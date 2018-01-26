@@ -1,5 +1,12 @@
 # Changelog 
 
+## v0.3.0
+
+This release is an upgrade from fs2 0.10.0-M11 to 0.10.0-RC2.
+There are sweeping changes to the internals due to the removal of fs2's `unconsAsync`.  This is entirely the work of **@SystemFw**, who rewrote the `StreamSubscription`. Thank you!
+
+* [#43](https://github.com/zainab-ali/fs2-reactive-streams/pull/43): Upgrade fs2 to 0.10-RC2 by @SystemFw
+
 ## v0.2.8
 
 This release is an upgrade from fs2 0.10.0-M10 to 0.10.0-M11
