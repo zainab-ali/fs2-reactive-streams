@@ -16,8 +16,8 @@ import scala.concurrent.ExecutionContext
   *
   * @see https://github.com/reactive-streams/reactive-streams-jvm#2-subscriber-code
   */
-final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(implicit A: Effect[F],
-                                                                             ec: ExecutionContext)
+final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.FSM[F, A])(implicit A: Effect[F],
+                                                                           ec: ExecutionContext)
     extends Subscriber[A] {
 
   /** Called by an upstream reactivestreams system */
@@ -48,190 +48,107 @@ final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.Queue[F, A])(imp
 }
 
 object StreamSubscriber {
+  def apply[F[_], A](implicit AA: Effect[F], ec: ExecutionContext): F[StreamSubscriber[F, A]] =
+    fsm[F, A].map(new StreamSubscriber(_))
 
-  def apply[F[_], A]()(implicit AA: Effect[F], ec: ExecutionContext): F[StreamSubscriber[F, A]] =
-    queue[F, A]().map(new StreamSubscriber(_))
-
-  /** A single element queue representing the subscriber */
-  trait Queue[F[_], A] {
+  /** A finite state machine describing the subscriber */
+  private[reactivestreams] trait FSM[F[_], A] {
 
     /** receives a subscription from upstream */
-    private[reactivestreams] def onSubscribe(s: Subscription): F[Unit]
+    def onSubscribe(s: Subscription): F[Unit]
 
     /** receives next record from upstream */
-    private[reactivestreams] def onNext(a: A): F[Unit]
+    def onNext(a: A): F[Unit]
 
     /** receives error from upstream */
-    private[reactivestreams] def onError(t: Throwable): F[Unit]
+    def onError(t: Throwable): F[Unit]
 
     /** called when upstream has finished sending records */
-    private[reactivestreams] def onComplete: F[Unit]
+    def onComplete: F[Unit]
 
     /** called when downstream has finished consuming records */
-    private[reactivestreams] def onFinalize: F[Unit]
+    def onFinalize: F[Unit]
 
     /** producer for downstream */
-    private[reactivestreams] def dequeue1: F[Either[Throwable, Option[A]]]
+    def dequeue1: F[Either[Throwable, Option[A]]]
 
     /** downstream stream */
-    def stream()(implicit A: Applicative[F]): Stream[F, A] =
+    def stream(implicit ev: Applicative[F]): Stream[F, A] =
       Stream.eval(dequeue1).repeat.rethrow.unNoneTerminate.onFinalize(onFinalize)
   }
 
-  def queue[F[_], A]()(implicit F: Effect[F], ec: ExecutionContext): F[Queue[F, A]] = {
+  private[reactivestreams] def fsm[F[_], A](implicit F: Effect[F],
+                                            ec: ExecutionContext): F[FSM[F, A]] = {
 
-    /** Represents the state of the Queue */
+    type Out = Either[Throwable, Option[A]]
+
+    sealed trait Input
+    case class OnSubscribe(s: Subscription) extends Input
+    case class OnNext(a: A) extends Input
+    case class OnError(e: Throwable) extends Input
+    case object OnComplete extends Input
+    case object OnFinalize extends Input
+    case class OnDequeue(response: Promise[F, Out]) extends Input
+
     sealed trait State
-
-    /** No requests have been made (the downstream [[fs2.Stream]] has not been pulled on) */
     case object Uninitialized extends State
-
-    /** The first downstream request has been made, but a subscription has not been received from upstream.
-      *
-      *  @param req the first downstream request
-      */
-    case class FirstRequest(req: Promise[F, Either[Throwable, Option[A]]]) extends State
-
-    /** The subscriber has requested an element from upstream, but not yet received it
-      *
-      * @param sub the subscription to upstream
-      * @param req the request from downstream
-      */
-    case class PendingElement(sub: Subscription, req: Promise[F, Either[Throwable, Option[A]]])
-        extends State
-
-    /** No downstream requests are open and a subscription has been received.
-      *
-      * @param sub the subscription to upstream
-      */
     case class Idle(sub: Subscription) extends State
+    case class RequestBeforeSubscription(req: Promise[F, Out]) extends State
+    case class WaitingOnUpstream(sub: Subscription, elementRequest: Promise[F, Out]) extends State
+    case object UpstreamCompletion extends State
+    case object DownstreamCancellation extends State
+    case class UpstreamError(err: Throwable) extends State
 
-    /** The upstream publisher has completed successfully */
-    case object Complete extends State
+    def step(in: Input): State => (State, F[Unit]) = in match {
+      case OnSubscribe(s) => {
+        case RequestBeforeSubscription(req) => WaitingOnUpstream(s, req) -> F.delay(s.request(1))
+        case Uninitialized => Idle(s) -> F.unit
+        case o =>
+          val err = new Error(s"received subscription in invalid state [$o]")
+          o -> F.delay(s.cancel) *> F.raiseError(err)
+      }
+      case OnNext(a) => {
+        case WaitingOnUpstream(s, r) => Idle(s) -> r.complete(a.some.asRight)
+        case c @ DownstreamCancellation => c -> F.unit
+        case o => o -> F.raiseError(new Error(s"received record [$a] in invalid state [$o]"))
+      }
+      case OnComplete => {
+        case WaitingOnUpstream(sub, r) => UpstreamCompletion -> r.complete(None.asRight)
+        case o => UpstreamCompletion -> F.unit
+      }
+      case OnError(e) => {
+        case WaitingOnUpstream(_, r) => UpstreamError(e) -> r.complete(e.asLeft)
+        case o => UpstreamError(e) -> F.unit
+      }
+      case OnFinalize => {
+        case WaitingOnUpstream(sub, r) =>
+          DownstreamCancellation -> F.delay(sub.cancel) *> r.complete(None.asRight)
+        case Idle(sub) => DownstreamCancellation -> F.delay(sub.cancel)
+        case o => o -> F.unit
+      }
+      case OnDequeue(r) => {
+        case Uninitialized => RequestBeforeSubscription(r) -> F.unit
+        case Idle(sub) => WaitingOnUpstream(sub, r) -> F.delay(sub.request(1))
+        case err @ UpstreamError(e) => err -> r.complete(e.asLeft)
+        case c @ UpstreamCompletion => c -> r.complete(None.asRight)
+        case o => o -> r.complete((new Error(s"received request in invalid state [$o]")).asLeft)
+      }
+    }
 
-    /** Downstream finished before upstream completed.  The subscription has been cancelled. */
-    case object Cancelled extends State
-
-    /** An error was received from upstream */
-    case class Errored(err: Throwable) extends State
-
-    async.refOf[F, State](Uninitialized).map { qref =>
-      new Queue[F, A] {
-
-        def onSubscribe(s: Subscription): F[Unit] =
-          qref
-            .modify {
-              case FirstRequest(req) =>
-                PendingElement(s, req)
-              case Uninitialized =>
-                Idle(s)
-              case o => o
-            }
-            .flatMap {
-              _.previous match {
-                case _: FirstRequest =>
-                  F.pure(s.request(1))
-                case Uninitialized =>
-                  F.pure(())
-                case o =>
-                  F.pure(s.cancel()) *> F
-                    .raiseError(new Error(s"received subscription in invalid state [$o]"))
-              }
-            }
-
-        def onNext(a: A): F[Unit] =
-          qref
-            .modify {
-              case PendingElement(s, r) =>
-                Idle(s)
-              case o =>
-                o
-            }
-            .flatMap { c =>
-              c.previous match {
-                case PendingElement(s, r) =>
-                  r.complete(Right(Some(a)))
-                case Cancelled =>
-                  F.pure(())
-                case o =>
-                  F.raiseError(new Error(s"received record [$a] in invalid state [$o]"))
-              }
-            }
-
-        def onComplete(): F[Unit] =
-          qref
-            .modify { _ =>
-              Complete
-            }
-            .flatMap {
-              _.previous match {
-                case PendingElement(sub, r) =>
-                  r.complete(Right(None))
-                case o =>
-                  F.pure(())
-              }
-            }
-
-        def onError(t: Throwable): F[Unit] =
-          qref
-            .modify { _ =>
-              Errored(t)
-            }
-            .flatMap {
-              _.previous match {
-                case PendingElement(sub, r) =>
-                  r.complete(Left(t))
-                case o =>
-                  F.pure(())
-              }
-            }
-
-        def onFinalize: F[Unit] =
-          qref
-            .modify {
-              case PendingElement(_, _) | Idle(_) =>
-                Cancelled
-              case o =>
-                o
-            }
-            .flatMap { o =>
-              o.previous match {
-                case PendingElement(sub, r) =>
-                  F.pure(sub.cancel()) *> r.complete(Right(None))
-                case Idle(sub) =>
-                  F.pure(sub.cancel())
-                case o =>
-                  F.pure(())
-              }
-            }
-
+    async.refOf[F, State](Uninitialized).map { ref =>
+      new FSM[F, A] {
+        def nextState(in: Input): F[Unit] = ref.modify2(step(in)).flatMap(_._2)
+        def onSubscribe(s: Subscription): F[Unit] = nextState(OnSubscribe(s))
+        def onNext(a: A): F[Unit] = nextState(OnNext(a))
+        def onError(t: Throwable): F[Unit] = nextState(OnError(t))
+        def onComplete: F[Unit] = nextState(OnComplete)
+        def onFinalize: F[Unit] = nextState(OnFinalize)
         def dequeue1: F[Either[Throwable, Option[A]]] =
-          async.promise[F, Either[Throwable, Option[A]]].flatMap { r =>
-            qref
-              .modify {
-                case Uninitialized =>
-                  FirstRequest(r)
-                case Idle(sub) =>
-                  PendingElement(sub, r)
-                case o => o
-              }
-              .flatMap(
-                c =>
-                  c.previous match {
-                    case Uninitialized =>
-                      r.get
-                    case Idle(sub) =>
-                      F.pure(sub.request(1)).flatMap(_ => r.get)
-                    case Errored(err) =>
-                      F.pure(Left(err))
-                    case Complete =>
-                      F.pure(Right(None))
-                    case FirstRequest(_) | PendingElement(_, _) | Cancelled =>
-                      F.pure(Left(new Error(s"received request in invalid state [${c.previous}]")))
-                }
-              )
+          async.promise[F, Out].flatMap { p =>
+            ref.modify2(step(OnDequeue(p))).flatMap(_._2) *> p.get
           }
       }
     }
   }
+
 }

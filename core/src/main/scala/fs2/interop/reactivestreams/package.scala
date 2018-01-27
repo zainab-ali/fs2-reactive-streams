@@ -17,7 +17,7 @@ package object reactivestreams {
     p: Publisher[A]
   )(implicit ec: ExecutionContext): Stream[F, A] =
     Stream
-      .eval(StreamSubscriber[F, A]().map { s =>
+      .eval(StreamSubscriber[F, A].map { s =>
         p.subscribe(s)
         s
       })
