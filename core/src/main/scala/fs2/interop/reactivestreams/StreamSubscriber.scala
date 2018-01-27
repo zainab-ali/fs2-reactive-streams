@@ -73,7 +73,7 @@ object StreamSubscriber {
     def dequeue1: F[Either[Throwable, Option[A]]]
 
     /** downstream stream */
-    def stream()(implicit ev: Applicative[F]): Stream[F, A] =
+    def stream(implicit ev: Applicative[F]): Stream[F, A] =
       Stream.eval(dequeue1).repeat.rethrow.unNoneTerminate.onFinalize(onFinalize)
   }
 
