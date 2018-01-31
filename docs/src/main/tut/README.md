@@ -10,9 +10,9 @@ A reactive streams implementation for [fs2](https://github.com/functional-stream
 Add the following to your `build.sbt`:
 
 ```tut:silent:fail
-libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.3.0"
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.4.0"
 ```
-This is dependent on version `0.10.0-RC2` of fs2.
+This is dependent on version `0.10.0` of fs2.
 
 ## TL;DR
 
@@ -94,6 +94,7 @@ system.terminate()
 
 | fs2            | fs2-reactive-streams | status     |
 |:--------------:|:--------------------:|:----------:|
+| 0.10.0         | 0.4.0                | current    |
 | 0.10.0-RC2     | 0.3.0                | current    |
 | 0.10.0-M11     | 0.2.8                | current    |
 | 0.10.0-M10     | 0.2.7                | current    |

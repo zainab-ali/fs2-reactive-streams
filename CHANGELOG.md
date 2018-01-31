@@ -1,5 +1,13 @@
 # Changelog 
 
+## v0.4.0
+
+This release is a simple upgrade from fs2 0.10.0-RC2 to 0.10.0.
+It also includes an exellent refactor by **@SystemFw**, which simplifies the `StreamSubscriber`.  Thanks!
+
+* [#45](https://github.com/zainab-ali/fs2-reactive-streams/pull/45): Upgrade to fs2-0.10.0 by @rossabaker
+* [#44](https://github.com/zainab-ali/fs2-reactive-streams/pull/44): Refactor Subscriber by @SystemFw
+
 ## v0.3.0
 
 This release is an upgrade from fs2 0.10.0-M11 to 0.10.0-RC2.
