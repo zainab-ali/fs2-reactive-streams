@@ -7,6 +7,8 @@ A reactive streams implementation for [fs2](https://github.com/functional-stream
 
 ## To use
 
+[![Join the chat at https://gitter.im/zainab-ali/Lobby](https://badges.gitter.im/zainab-ali/Lobby.svg)](https://gitter.im/zainab-ali/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Add the following to your `build.sbt`:
 
 ```scala
