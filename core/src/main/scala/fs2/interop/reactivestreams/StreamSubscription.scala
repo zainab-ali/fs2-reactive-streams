@@ -24,16 +24,17 @@ final class StreamSubscription[F[_], A](
     extends Subscription {
   import StreamSubscription._
 
-  def onError(e: Throwable) = F.delay(sub.onError(e)) *> cancelled.set(true)
+  // We want to make sure `cancelled` is set _before_ signalling the subscriber
+  def onError(e: Throwable) = cancelled.set(true) *> F.delay(sub.onError(e))
+  def onComplete = cancelled.set(true) *> F.delay(sub.onComplete)
 
   def unsafeStart(): Unit = {
     def subscriptionPipe: Pipe[F, A, A] =
       in => {
         def go(s: Stream[F, A]): Pull[F, A, Unit] =
           Pull.eval(requests.dequeue1).flatMap {
-            case Cancelled => Pull.done
-            case InfiniteRequests => s.pull.echo
-            case FiniteRequests(n) =>
+            case Infinite => s.pull.echo
+            case Finite(n) =>
               s.pull.take(n).flatMap {
                 case None => Pull.done
                 case Some(rem) => go(rem)
@@ -49,25 +50,32 @@ final class StreamSubscription[F[_], A](
         .interruptWhen(cancelled)
         .evalMap(x => F.delay(sub.onNext(x)))
         .handleErrorWith(e => Stream.eval(onError(e)))
-        .onFinalize {
-          cancelled.get.ifM(
-            ifTrue = F.unit,
-            ifFalse = cancelled.set(true) *> F.delay(sub.onComplete)
-          )
-        }
+        .onFinalize(cancelled.get.ifM(ifTrue = F.unit, ifFalse = onComplete))
         .compile
         .drain
 
     async.unsafeRunAsync(s)(_ => IO.unit)
   }
 
+  // According to the spec, it's acceptable for a concurrent cancel to not
+  // be processed immediately, bt if you have synchronous `cancel();
+  // request()`, then the request _must_ be a no op. For this reason, we
+  // need to make sure that `cancel()` does not return until the
+  // `cancelled` signal has been set.
+  // See https://github.com/zainab-ali/fs2-reactive-streams/issues/29
+  // and https://github.com/zainab-ali/fs2-reactive-streams/issues/46
   def cancel(): Unit =
-    async.unsafeRunAsync(cancelled.set(true) *> requests.enqueue1(Cancelled))(_ => IO.unit)
+    IO.async[Unit] { cb =>
+        async.unsafeRunAsync {
+          cancelled.set(true) *> F.delay(cb(Right()))
+        }(_ => IO.unit)
+      }
+      .unsafeRunSync
 
   def request(n: Long): Unit = {
     val request =
-      if (n == java.lang.Long.MAX_VALUE) InfiniteRequests.pure[F]
-      else if (n > 0) FiniteRequests(n).pure[F]
+      if (n == java.lang.Long.MAX_VALUE) Infinite.pure[F]
+      else if (n > 0) Finite(n).pure[F]
       else F.raiseError(new IllegalArgumentException(s"3.9 - invalid number of elements [$n]"))
 
     val prog = cancelled.get
@@ -79,20 +87,10 @@ final class StreamSubscription[F[_], A](
 
 object StreamSubscription {
 
-  /** Represents a request to publish elements by a downstream subscriber */
+  /** Represents a downstream subscriber's request to publish elements */
   sealed trait Request
-
-  /** The downstream reactivestreams subscriber has requested an infinite number of elements */
-  case object InfiniteRequests extends Request
-
-  /** The downstream subscriber has requested a finite number of elements.
-    *
-    * @param n the number of elements requested
-    */
-  case class FiniteRequests(n: Long) extends Request
-
-  /** The downstream subscriber has cancelled the subscription. */
-  case object Cancelled extends Request
+  case object Infinite extends Request
+  case class Finite(n: Long) extends Request
 
   def apply[F[_]: Effect, A](sub: Subscriber[A], stream: Stream[F, A])(
     implicit ec: ExecutionContext
