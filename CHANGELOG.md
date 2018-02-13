@@ -1,4 +1,10 @@
-# Changelog 
+# Changelog
+
+## v0.5.1
+
+This release is a simple upgrade from fs2 0.10.0 to 0.10.1.
+
+* [#49](https://github.com/zainab-ali/fs2-reactive-streams/pull/49): Fs2 Patch Version Update by @ChristopherDavenport
 
 ## v0.5.0
 
