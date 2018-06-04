@@ -20,7 +20,7 @@ final class StreamSubscription[F[_], A](
   cancelled: Signal[F, Boolean],
   sub: Subscriber[A],
   stream: Stream[F, A]
-)(implicit F: Effect[F], ec: ExecutionContext)
+)(implicit F: ConcurrentEffect[F], timer: Timer[F])
     extends Subscription {
   import StreamSubscription._
 
@@ -92,8 +92,8 @@ object StreamSubscription {
   case object Infinite extends Request
   case class Finite(n: Long) extends Request
 
-  def apply[F[_]: Effect, A](sub: Subscriber[A], stream: Stream[F, A])(
-    implicit ec: ExecutionContext
+  def apply[F[_]: ConcurrentEffect, A](sub: Subscriber[A], stream: Stream[F, A])(
+    implicit timer: Timer[F]
   ): F[StreamSubscription[F, A]] =
     async.signalOf[F, Boolean](false).flatMap { cancelled =>
       async.unboundedQueue[F, Request].map { requests =>

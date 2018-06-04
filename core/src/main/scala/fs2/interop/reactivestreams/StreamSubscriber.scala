@@ -4,8 +4,8 @@ package reactivestreams
 
 import cats._
 import cats.effect._
+import cats.effect.concurrent.{Deferred, Ref}
 import cats.implicits._
-import fs2.async.{Promise, Ref}
 import org.reactivestreams._
 
 import scala.concurrent.ExecutionContext
@@ -16,8 +16,8 @@ import scala.concurrent.ExecutionContext
   *
   * @see https://github.com/reactive-streams/reactive-streams-jvm#2-subscriber-code
   */
-final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.FSM[F, A])(implicit A: Effect[F],
-                                                                           ec: ExecutionContext)
+final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.FSM[F, A])(implicit F: ConcurrentEffect[F],
+                                                                           timer: Timer[F])
     extends Subscriber[A] {
 
   /** Called by an upstream reactivestreams system */
@@ -48,7 +48,7 @@ final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.FSM[F, A])(impli
 }
 
 object StreamSubscriber {
-  def apply[F[_], A](implicit AA: Effect[F], ec: ExecutionContext): F[StreamSubscriber[F, A]] =
+  def apply[F[_], A](implicit AA: ConcurrentEffect[F], timer: Timer[F]): F[StreamSubscriber[F, A]] =
     fsm[F, A].map(new StreamSubscriber(_))
 
   /** A finite state machine describing the subscriber */
@@ -77,8 +77,7 @@ object StreamSubscriber {
       Stream.eval(dequeue1).repeat.rethrow.unNoneTerminate.onFinalize(onFinalize)
   }
 
-  private[reactivestreams] def fsm[F[_], A](implicit F: Effect[F],
-                                            ec: ExecutionContext): F[FSM[F, A]] = {
+  private[reactivestreams] def fsm[F[_], A](implicit F: Concurrent[F]): F[FSM[F, A]] = {
 
     type Out = Either[Throwable, Option[A]]
 
@@ -88,13 +87,13 @@ object StreamSubscriber {
     case class OnError(e: Throwable) extends Input
     case object OnComplete extends Input
     case object OnFinalize extends Input
-    case class OnDequeue(response: Promise[F, Out]) extends Input
+    case class OnDequeue(response: Deferred[F, Out]) extends Input
 
     sealed trait State
     case object Uninitialized extends State
     case class Idle(sub: Subscription) extends State
-    case class RequestBeforeSubscription(req: Promise[F, Out]) extends State
-    case class WaitingOnUpstream(sub: Subscription, elementRequest: Promise[F, Out]) extends State
+    case class RequestBeforeSubscription(req: Deferred[F, Out]) extends State
+    case class WaitingOnUpstream(sub: Subscription, elementRequest: Deferred[F, Out]) extends State
     case object UpstreamCompletion extends State
     case object DownstreamCancellation extends State
     case class UpstreamError(err: Throwable) extends State
@@ -135,17 +134,17 @@ object StreamSubscriber {
       }
     }
 
-    async.refOf[F, State](Uninitialized).map { ref =>
+    Ref.of[F, State](Uninitialized).map { ref =>
       new FSM[F, A] {
-        def nextState(in: Input): F[Unit] = ref.modify2(step(in)).flatMap(_._2)
+        def nextState(in: Input): F[Unit] = ref.modify(step(in)).flatten
         def onSubscribe(s: Subscription): F[Unit] = nextState(OnSubscribe(s))
         def onNext(a: A): F[Unit] = nextState(OnNext(a))
         def onError(t: Throwable): F[Unit] = nextState(OnError(t))
         def onComplete: F[Unit] = nextState(OnComplete)
         def onFinalize: F[Unit] = nextState(OnFinalize)
         def dequeue1: F[Either[Throwable, Option[A]]] =
-          async.promise[F, Out].flatMap { p =>
-            ref.modify2(step(OnDequeue(p))).flatMap(_._2) *> p.get
+          Deferred[F, Out].flatMap { p =>
+            ref.modify(step(OnDequeue(p))).flatten *> p.get
           }
       }
     }

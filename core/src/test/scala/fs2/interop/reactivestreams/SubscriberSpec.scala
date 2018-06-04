@@ -5,6 +5,7 @@ package reactivestreams
 import java.util.concurrent.atomic.AtomicInteger
 
 import cats.effect._
+import cats.implicits._
 import org.reactivestreams._
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{
   SubscriberPuppet,
@@ -77,10 +78,7 @@ class SubscriberBlackboxSpec
     with TestNGSuiteLike {
   implicit val ec: ExecutionContext = ExecutionContext.global
 
-  val (scheduler: Scheduler, _) =
-    Scheduler
-      .allocate[IO](corePoolSize = 2, threadPrefix = "subscriber-blackbox-spec-scheduler")
-      .unsafeRunSync()
+  val timer = Timer[IO]
 
   private val counter = new AtomicInteger()
 
@@ -88,7 +86,7 @@ class SubscriberBlackboxSpec
 
   override def triggerRequest(s: Subscriber[_ >: Int]): Unit = {
     val req = s.asInstanceOf[StreamSubscriber[IO, Int]].sub.dequeue1
-    (scheduler.sleep_[IO](100 milliseconds) ++ Stream.eval(req)).compile.drain.unsafeRunAsync(_ => ())
+    (Stream.eval(timer.sleep(100.milliseconds) *> req)).compile.drain.unsafeRunAsync(_ => ())
   }
 
   def createElement(i: Int): Int = counter.incrementAndGet()
