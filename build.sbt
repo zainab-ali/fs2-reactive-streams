@@ -3,7 +3,7 @@ import ReleaseTransformations._
 
 lazy val buildSettings = Seq(
   organization := "com.github.zainab-ali",
-  crossScalaVersions := List("2.12.4", "2.11.12"),
+  crossScalaVersions := List("2.12.6", "2.11.12"),
   scalaVersion := crossScalaVersions.value.head,
   name := "fs2-reactive-streams"
 )
@@ -28,9 +28,9 @@ lazy val commonSettings = Seq(
     resolvers ++= commonResolvers,
     scalacOptions ++= commonScalacOptions,
     libraryDependencies ++= Seq(
-      "co.fs2" %% "fs2-core" % "0.10.1",
+      "co.fs2" %% "fs2-core" % "1.0.0-M1",
       "org.reactivestreams" % "reactive-streams" % "1.0.2",
-      "org.scalatest" %% "scalatest" % "3.0.4" % "test",
+      "org.scalatest" %% "scalatest" % "3.0.5" % "test",
       "org.scalacheck" %% "scalacheck" % "1.13.5" % "test",
       "org.reactivestreams" % "reactive-streams-tck" % "1.0.2" % "test"
     )
