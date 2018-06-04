@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.6.0
+
+This release is a simple upgrade from fs2 0.10.1 to 1.0.0-M1.
+It also includes a scala version upgrade from 2.12.4 to 2.12.6.
+
+* [#50](https://github.com/zainab-ali/fs2-reactive-streams/pull/50): Upgrade to fs2-1.0.0-M1 by @rossabaker
+
 ## v0.5.1
 
 This release is a simple upgrade from fs2 0.10.0 to 0.10.1.

@@ -13,9 +13,9 @@ A reactive streams implementation for [fs2](https://github.com/functional-stream
 Add the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.5.1"
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.6.0"
 ```
-This is dependent on version `0.10.0` of fs2.
+This is dependent on version `1.0.0-M1` of fs2.
 
 ## TL;DR
 
@@ -36,7 +36,7 @@ val upstream = Stream(1, 2, 3).covary[IO]
 // upstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val publisher = upstream.toUnicastPublisher
-// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@1655d153
+// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@255c4c49
 
 val downstream = publisher.toStream[IO]
 // downstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
@@ -91,10 +91,10 @@ To convert from an `Source` to a `Stream`:
 
 ```scala
 val source = Source(1 to 5)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(593477360)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(1584690409)))
 
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
-// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(593477360)])
+// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(1584690409)])
 
 val stream = publisher.toStream[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
@@ -110,7 +110,7 @@ val stream = Stream.emits((1 to 5).toSeq).covary[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(672726900)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(1636967086)))
 
 IO.fromFuture(IO(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 // res6: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)
@@ -125,6 +125,7 @@ Patch releases (e.g `0.2.7` to `0.2.8`) are binary compatible.  If you're concer
 
 | fs2            | fs2-reactive-streams | status     |
 |:--------------:|:--------------------:|:----------:|
+| 1.0.0-M1       | 0.6.0                | current    |
 | 0.10.1         | 0.5.1                | current    |
 | 0.10.0         | 0.5.0                | current    |
 | ~~0.10.0~~     | ~~0.4.0~~            | ~~broken~~ |

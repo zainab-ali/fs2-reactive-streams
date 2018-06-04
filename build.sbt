@@ -76,7 +76,7 @@ val publishSettings = Seq(
 )
 
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set("com.github.zainab-ali" %% "fs2-reactive-streams" % "0.5.1")
+  mimaPreviousArtifacts := Set("com.github.zainab-ali" %% "fs2-reactive-streams" % "0.6.0")
 )
 
 lazy val core = (project in file("core"))
