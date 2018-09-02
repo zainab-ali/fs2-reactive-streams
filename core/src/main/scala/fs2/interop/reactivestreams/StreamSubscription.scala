@@ -3,6 +3,7 @@ package interop
 package reactivestreams
 
 import cats.effect._
+import cats.effect.implicits._
 import cats.implicits._
 import fs2._, async.mutable.{Signal, Queue}
 import org.reactivestreams._
@@ -20,7 +21,7 @@ final class StreamSubscription[F[_], A](
   cancelled: Signal[F, Boolean],
   sub: Subscriber[A],
   stream: Stream[F, A]
-)(implicit F: ConcurrentEffect[F], timer: Timer[F])
+)(implicit F: ConcurrentEffect[F])
     extends Subscription {
   import StreamSubscription._
 
@@ -54,7 +55,7 @@ final class StreamSubscription[F[_], A](
         .compile
         .drain
 
-    async.unsafeRunAsync(s)(_ => IO.unit)
+    s.unsafeRunAsync
   }
 
   // According to the spec, it's acceptable for a concurrent cancel to not
@@ -65,12 +66,7 @@ final class StreamSubscription[F[_], A](
   // See https://github.com/zainab-ali/fs2-reactive-streams/issues/29
   // and https://github.com/zainab-ali/fs2-reactive-streams/issues/46
   def cancel(): Unit =
-    IO.async[Unit] { cb =>
-        async.unsafeRunAsync {
-          cancelled.set(true) *> F.delay(cb(Right()))
-        }(_ => IO.unit)
-      }
-      .unsafeRunSync
+    cancelled.set(true).toIO.unsafeRunSync
 
   def request(n: Long): Unit = {
     val request =
@@ -81,7 +77,7 @@ final class StreamSubscription[F[_], A](
     val prog = cancelled.get
       .ifM(ifTrue = F.unit, ifFalse = request.flatMap(requests.enqueue1).handleErrorWith(onError))
 
-    async.unsafeRunAsync(prog)(_ => IO.unit)
+    prog.unsafeRunAsync
   }
 }
 
@@ -92,9 +88,7 @@ object StreamSubscription {
   case object Infinite extends Request
   case class Finite(n: Long) extends Request
 
-  def apply[F[_]: ConcurrentEffect, A](sub: Subscriber[A], stream: Stream[F, A])(
-    implicit timer: Timer[F]
-  ): F[StreamSubscription[F, A]] =
+  def apply[F[_]: ConcurrentEffect, A](sub: Subscriber[A], stream: Stream[F, A]): F[StreamSubscription[F, A]] =
     async.signalOf[F, Boolean](false).flatMap { cancelled =>
       async.unboundedQueue[F, Request].map { requests =>
         new StreamSubscription(requests, cancelled, sub, stream)

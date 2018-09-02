@@ -10,7 +10,8 @@ import scala.concurrent.ExecutionContext
 
 class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChecks {
 
-  implicit val ec: ExecutionContext = ExecutionContext.global
+  implicit val ctx: ContextShift[IO] =
+    IO.contextShift(scala.concurrent.ExecutionContext.Implicits.global)
 
   it should "have the same output as input" in {
     forAll { (ints: Seq[Int]) =>
@@ -23,7 +24,7 @@ class PublisherToSubscriberSpec extends FlatSpec with Matchers with PropertyChec
   object TestError extends Exception("BOOM")
 
   it should "propagate errors downstream" in {
-    val input: Stream[IO, Int] = Stream(1, 2, 3) ++ Stream.raiseError(TestError)
+    val input: Stream[IO, Int] = Stream(1, 2, 3) ++ Stream.raiseError[IO](TestError)
     val output: Stream[IO, Int] = input.toUnicastPublisher.toStream[IO]
 
     output.compile.drain.attempt.unsafeRunSync() should ===(Left(TestError))

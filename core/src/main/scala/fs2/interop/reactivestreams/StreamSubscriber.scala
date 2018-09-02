@@ -16,29 +16,28 @@ import scala.concurrent.ExecutionContext
   *
   * @see https://github.com/reactive-streams/reactive-streams-jvm#2-subscriber-code
   */
-final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.FSM[F, A])(implicit F: ConcurrentEffect[F],
-                                                                           timer: Timer[F])
+final class StreamSubscriber[F[_]: ConcurrentEffect, A](val sub: StreamSubscriber.FSM[F, A])
     extends Subscriber[A] {
 
   /** Called by an upstream reactivestreams system */
   def onSubscribe(s: Subscription): Unit = {
     nonNull(s)
-    async.unsafeRunAsync(sub.onSubscribe(s))(_ => IO.unit)
+    sub.onSubscribe(s).unsafeRunAsync
   }
 
   /** Called by an upstream reactivestreams system */
   def onNext(a: A): Unit = {
     nonNull(a)
-    async.unsafeRunAsync(sub.onNext(a))(_ => IO.unit)
+    sub.onNext(a).unsafeRunAsync
   }
 
   /** Called by an upstream reactivestreams system */
-  def onComplete(): Unit = async.unsafeRunAsync(sub.onComplete)(_ => IO.unit)
+  def onComplete(): Unit = sub.onComplete.unsafeRunAsync
 
   /** Called by an upstream reactivestreams system */
   def onError(t: Throwable): Unit = {
     nonNull(t)
-    async.unsafeRunAsync(sub.onError(t))(_ => IO.unit)
+    sub.onError(t).unsafeRunAsync
   }
 
   /** Obtain a Stream */
@@ -48,7 +47,7 @@ final class StreamSubscriber[F[_], A](val sub: StreamSubscriber.FSM[F, A])(impli
 }
 
 object StreamSubscriber {
-  def apply[F[_], A](implicit AA: ConcurrentEffect[F], timer: Timer[F]): F[StreamSubscriber[F, A]] =
+  def apply[F[_]: ConcurrentEffect, A]: F[StreamSubscriber[F, A]] =
     fsm[F, A].map(new StreamSubscriber(_))
 
   /** A finite state machine describing the subscriber */
@@ -73,7 +72,7 @@ object StreamSubscriber {
     def dequeue1: F[Either[Throwable, Option[A]]]
 
     /** downstream stream */
-    def stream(implicit ev: Applicative[F]): Stream[F, A] =
+    def stream(implicit ev: ApplicativeError[F, Throwable]): Stream[F, A] =
       Stream.eval(dequeue1).repeat.rethrow.unNoneTerminate.onFinalize(onFinalize)
   }
 

@@ -26,14 +26,15 @@ class StreamUnicastPublisherSpec
     extends PublisherVerification[Int](new TestEnvironment(1000L))
     with TestNGSuiteLike {
 
-  implicit val ec: ExecutionContext = ExecutionContext.global
+  implicit val ctx: ContextShift[IO] =
+      IO.contextShift(scala.concurrent.ExecutionContext.Implicits.global)
 
   def createPublisher(n: Long): StreamUnicastPublisher[IO, Int] = {
     val s =
       if (n == java.lang.Long.MAX_VALUE) Stream.range(1, 20).repeat
       else Stream(1).repeat.scan(1)(_ + _).map(i => if (i > n) None else Some(i)).unNoneTerminate
 
-    s.covary[IO].toUnicastPublisher()
+    s.covary[IO].toUnicastPublisher
   }
 
   def createFailedPublisher(): FailedPublisher = new FailedPublisher()
