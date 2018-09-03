@@ -16,9 +16,8 @@ import scala.concurrent.ExecutionContext
   * @see https://github.com/reactive-streams/reactive-streams-jvm#1-publisher-code
   *
   */
-final class StreamUnicastPublisher[F[_]: ConcurrentEffect, A](
-  val s: Stream[F, A]
-) extends Publisher[A] {
+final class StreamUnicastPublisher[F[_]: ConcurrentEffect, A](val s: Stream[F, A])
+    extends Publisher[A] {
 
   def subscribe(subscriber: Subscriber[_ >: A]): Unit = {
     nonNull(subscriber)
@@ -30,13 +29,10 @@ final class StreamUnicastPublisher[F[_]: ConcurrentEffect, A](
     }.unsafeRunAsync
   }
 
-
   private def nonNull[A](a: A): Unit = if (a == null) throw new NullPointerException()
 }
 
 object StreamUnicastPublisher {
-  def apply[F[_]: ConcurrentEffect, A](
-    s: Stream[F, A]
-  ): StreamUnicastPublisher[F, A] =
+  def apply[F[_]: ConcurrentEffect, A](s: Stream[F, A]): StreamUnicastPublisher[F, A] =
     new StreamUnicastPublisher(s)
 }

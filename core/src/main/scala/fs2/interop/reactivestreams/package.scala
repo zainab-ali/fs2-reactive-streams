@@ -17,7 +17,9 @@ package object reactivestreams {
   def fromPublisher[F[_]: ConcurrentEffect, A](p: Publisher[A]): Stream[F, A] =
     Stream
       .eval(StreamSubscriber[F, A])
-      .evalTap { s => Sync[F] delay p.subscribe(s) }
+      .evalTap { s =>
+        Sync[F] delay p.subscribe(s)
+      }
       .flatMap(_.sub.stream)
 
   implicit final class PublisherOps[A](val pub: Publisher[A]) extends AnyVal {
@@ -52,4 +54,3 @@ package object reactivestreams {
       }.unsafeRunSync
   }
 }
-  

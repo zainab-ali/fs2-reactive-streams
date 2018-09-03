@@ -16,12 +16,10 @@ import scala.concurrent.ExecutionContext
   *
   * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */
-final class StreamSubscription[F[_], A](
-  requests: Queue[F, StreamSubscription.Request],
-  cancelled: Signal[F, Boolean],
-  sub: Subscriber[A],
-  stream: Stream[F, A]
-)(implicit F: ConcurrentEffect[F])
+final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request],
+                                        cancelled: Signal[F, Boolean],
+                                        sub: Subscriber[A],
+                                        stream: Stream[F, A])(implicit F: ConcurrentEffect[F])
     extends Subscription {
   import StreamSubscription._
 
@@ -88,7 +86,8 @@ object StreamSubscription {
   case object Infinite extends Request
   case class Finite(n: Long) extends Request
 
-  def apply[F[_]: ConcurrentEffect, A](sub: Subscriber[A], stream: Stream[F, A]): F[StreamSubscription[F, A]] =
+  def apply[F[_]: ConcurrentEffect, A](sub: Subscriber[A],
+                                       stream: Stream[F, A]): F[StreamSubscription[F, A]] =
     async.signalOf[F, Boolean](false).flatMap { cancelled =>
       async.unboundedQueue[F, Request].map { requests =>
         new StreamSubscription(requests, cancelled, sub, stream)
