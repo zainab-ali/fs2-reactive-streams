@@ -5,8 +5,8 @@ package reactivestreams
 import org.reactivestreams._
 import cats.effect._
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.concurrent.ExecutionContext
 
 import org.scalatest.FunSuite
 
@@ -17,6 +17,10 @@ import org.scalatest.FunSuite
   * failures due to race conditions more repeatable
   */
 class CancellationSpec extends FunSuite {
+  implicit val ctx: ContextShift[IO] =
+    IO.contextShift(ExecutionContext.global)
+
+
   case class Sub[A](b: AtomicBoolean) extends Subscriber[A] {
     def onNext(t: A) = b.set(true)
     def onComplete() = b.set(true)
