@@ -81,7 +81,7 @@ class SubscriberBlackboxSpec
     with TestNGSuiteLike {
 
   val timer = IO.timer(ExecutionContext.global)
-  implicit val ctx = IO.contextShift(ExecutionContext.global)
+  implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
   private val counter = new AtomicInteger()
 
