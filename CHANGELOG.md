@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.0
+
+This release is an upgrade from fs2 1.0.0-M1 to 1.0.0-M4.
+
+* [#51](https://github.com/zainab-ali/fs2-reactive-streams/pull/51): Upgrade to fs2 1.0.0-M4 by @SystemFw
+
 ## v0.6.0
 
 This release is a simple upgrade from fs2 0.10.1 to 1.0.0-M1.

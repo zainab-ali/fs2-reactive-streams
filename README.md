@@ -13,9 +13,9 @@ A reactive streams implementation for [fs2](https://github.com/functional-stream
 Add the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.6.0"
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.7.0"
 ```
-This is dependent on version `1.0.0-M1` of fs2.
+This is dependent on version `1.0.0-M4` of fs2.
 
 ## TL;DR
 
@@ -29,14 +29,17 @@ import cats._, cats.effect._, fs2._
 import fs2.interop.reactivestreams._
 // import fs2.interop.reactivestreams._
 
-import scala.concurrent.ExecutionContext.Implicits.global
-// import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
+// import scala.concurrent.ExecutionContext
+
+implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+// contextShift: cats.effect.ContextShift[cats.effect.IO] = cats.effect.internals.IOContextShift@54471ec0
 
 val upstream = Stream(1, 2, 3).covary[IO]
 // upstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val publisher = upstream.toUnicastPublisher
-// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@255c4c49
+// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@1522d2c9
 
 val downstream = publisher.toStream[IO]
 // downstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
@@ -56,6 +59,19 @@ This library provides instances of reactivestreams compliant publishers and subs
 
 ## Usage
 
+You may require the following imports
+
+```scala
+import cats._, cats.effect._, fs2._
+import fs2.interop.reactivestreams._
+import scala.concurrent.ExecutionContext
+```
+
+A `ContextShift` instance is necessary when working with `IO`
+
+```scala
+implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+```
 
 To convert a `Stream` into a downstream unicast `org.reactivestreams.Publisher`:
 
@@ -73,7 +89,7 @@ publisher.toStream[IO]
 
 A unicast publisher must have a single subscriber only.
 
-## Example: Akka streams
+## Example: Akka streams to Stream[IO]
 
 Import the Akka streams dsl:
 
@@ -82,38 +98,47 @@ import akka._
 import akka.stream._
 import akka.stream.scaladsl._
 import akka.actor.ActorSystem
+import cats.effect._
+import fs2.Stream
+import fs2.interop.reactivestreams._
+import scala.concurrent.ExecutionContext
 
-implicit val system = ActorSystem("akka-streams-example")
-implicit val materializer = ActorMaterializer()
+implicit val system: ActorSystem = ActorSystem("akka-streams-example")
+implicit val materializer: ActorMaterializer = ActorMaterializer()
+
+implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 ```
 
-To convert from an `Source` to a `Stream`:
+To convert from a `Source` to a `Stream`:
 
 ```scala
 val source = Source(1 to 5)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(1584690409)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(909903776)))
 
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
-// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(1584690409)])
+// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(909903776)])
 
 val stream = publisher.toStream[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 stream.compile.toVector.unsafeRunSync()
-// res5: Vector[Int] = Vector(1, 2, 3, 4, 5)
+// res0: Vector[Int] = Vector(1, 2, 3, 4, 5)
 ```
 
 To convert from a `Stream` to a `Source`:
 
 ```scala
+import scala.concurrent.ExecutionContext.global
+// import scala.concurrent.ExecutionContext.global
+
 val stream = Stream.emits((1 to 5).toSeq).covary[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(1636967086)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(2096104233)))
 
 IO.fromFuture(IO(source.runWith(Sink.seq[Int]))).unsafeRunSync()
-// res6: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)
+// res1: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)
 ```
 
 
@@ -125,6 +150,7 @@ Patch releases (e.g `0.2.7` to `0.2.8`) are binary compatible.  If you're concer
 
 | fs2            | fs2-reactive-streams | status     |
 |:--------------:|:--------------------:|:----------:|
+| 1.0.0-M4       | 0.7.0                | current    |
 | 1.0.0-M1       | 0.6.0                | current    |
 | 0.10.1         | 0.5.1                | current    |
 | 0.10.0         | 0.5.0                | current    |
