@@ -5,7 +5,8 @@ package reactivestreams
 import cats.effect._
 import cats.effect.implicits._
 import cats.implicits._
-import fs2._, async.mutable.{Signal, Queue}
+import fs2._
+import fs2.concurrent.{Queue, Signal, SignallingRef}
 import org.reactivestreams._
 
 import scala.concurrent.ExecutionContext
@@ -17,7 +18,7 @@ import scala.concurrent.ExecutionContext
   * @see https://github.com/reactive-streams/reactive-streams-jvm#3-subscription-code
   */
 final class StreamSubscription[F[_], A](requests: Queue[F, StreamSubscription.Request],
-                                        cancelled: Signal[F, Boolean],
+                                        cancelled: SignallingRef[F, Boolean],
                                         sub: Subscriber[A],
                                         stream: Stream[F, A])(implicit F: ConcurrentEffect[F])
     extends Subscription {
@@ -88,8 +89,8 @@ object StreamSubscription {
 
   def apply[F[_]: ConcurrentEffect, A](sub: Subscriber[A],
                                        stream: Stream[F, A]): F[StreamSubscription[F, A]] =
-    async.signalOf[F, Boolean](false).flatMap { cancelled =>
-      async.unboundedQueue[F, Request].map { requests =>
+    SignallingRef(false).flatMap { cancelled =>
+      Queue.unbounded[F, Request].map { requests =>
         new StreamSubscription(requests, cancelled, sub, stream)
       }
     }
