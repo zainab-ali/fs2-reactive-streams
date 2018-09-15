@@ -33,13 +33,13 @@ import scala.concurrent.ExecutionContext
 // import scala.concurrent.ExecutionContext
 
 implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-// contextShift: cats.effect.ContextShift[cats.effect.IO] = cats.effect.internals.IOContextShift@1c97d61e
+// contextShift: cats.effect.ContextShift[cats.effect.IO] = cats.effect.internals.IOContextShift@122e5701
 
 val upstream = Stream(1, 2, 3).covary[IO]
 // upstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val publisher = upstream.toUnicastPublisher
-// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@58ef0948
+// publisher: fs2.interop.reactivestreams.StreamUnicastPublisher[cats.effect.IO,Int] = fs2.interop.reactivestreams.StreamUnicastPublisher@c6a3ef
 
 val downstream = publisher.toStream[IO]
 // downstream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
@@ -113,10 +113,10 @@ To convert from a `Source` to a `Stream`:
 
 ```scala
 val source = Source(1 to 5)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(1524153206)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(StatefulMapConcat.out(2034490524)))
 
 val publisher = source.runWith(Sink.asPublisher[Int](fanout = false))
-// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(1524153206)])
+// publisher: org.reactivestreams.Publisher[Int] = VirtualProcessor(state = Publisher[StatefulMapConcat.out(2034490524)])
 
 val stream = publisher.toStream[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
@@ -135,7 +135,7 @@ val stream = Stream.emits((1 to 5).toSeq).covary[IO]
 // stream: fs2.Stream[cats.effect.IO,Int] = Stream(..)
 
 val source = Source.fromPublisher(stream.toUnicastPublisher)
-// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(1841488225)))
+// source: akka.stream.scaladsl.Source[Int,akka.NotUsed] = Source(SourceShape(PublisherSource.out(1467099394)))
 
 IO.fromFuture(IO(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 // res1: scala.collection.immutable.Seq[Int] = Vector(1, 2, 3, 4, 5)
