@@ -116,7 +116,7 @@ IO.fromFuture(IO(source.runWith(Sink.seq[Int]))).unsafeRunSync()
 system.terminate()
 ```
 
-## Version Compatability
+## Version Compatibility
 
 Patch releases (e.g `0.2.7` to `0.2.8`) are binary compatible.  If you're concerned about a broken release, please check the [CHANGELOG](CHANGELOG.md) for more details.
 
